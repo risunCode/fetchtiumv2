@@ -1,0 +1,133 @@
+MEDIA GATEWAY ENGINE – PLAN & PHASE
+
+Tujuan:
+Membangun Media Access Gateway (bukan downloader, bukan proxy polos) yang:
+- anti stream fail
+- hemat bandwidth backend
+- tidak kena CORS
+- clean & tidak over-engineered
+
+==================================================
+PRINSIP DESAIN UTAMA
+==================================================
+- Backend membuka akses, bukan mengirim data terus-menerus
+- Frontend embed media, bukan fetch media
+- Media = state, bukan handler per format
+- Redirect dulu, relay kalau terpaksa
+- Unknown lebih baik daripada angka palsu
+
+==================================================
+PHASE 0 – FOUNDATION (DONE)
+==================================================
+Tujuan:
+- Menyamakan mental model sistem
+- Menentukan boundary antar layer
+
+Hasil:
+- Network = transport murni
+- DOM = structural reader
+- Regex = scoped extractor
+- Media = state machine
+- Streaming = hybrid (redirect + relay)
+
+==================================================
+PHASE 1 – NETWORK LAYER
+==================================================
+Tujuan:
+- HTTP engine yang stabil & reusable
+
+Scope:
+- Connection reuse (keep-alive)
+- Streaming response
+- Header inspection
+- Abort handling
+
+Rule:
+- Network tidak boleh memutuskan data cukup atau tidak
+- Network tidak tahu media / HTML
+
+==================================================
+PHASE 2 – HTML PARSE & EXTRACT
+==================================================
+Tujuan:
+- Extract data tanpa nunggu EOF
+
+Scope:
+- Streaming buffer (sliding window)
+- Boundary detection (<script>, marker)
+- DOM fragment parsing
+- Regex scoped extract
+
+Rule:
+- Jangan parse full HTML
+- Jangan regex seluruh HTML
+
+==================================================
+PHASE 3 – MEDIA CLASSIFICATION
+==================================================
+Tujuan:
+- Unified media classification
+
+Input:
+- MIME
+- Extension
+- Content sniff
+
+Output contoh:
+kind=video
+streaming=true
+playlist=true
+container=mpegts
+
+Rule:
+- Tidak ada mp4.js / hls.js / opus.js
+- Semua lewat satu helper
+
+==================================================
+PHASE 4 – MEDIA PIPELINE
+==================================================
+Tujuan:
+- Menentukan perlakuan media
+
+Logic:
+- playlist -> handlePlaylist
+- streaming -> handleStream
+- direct file -> handleDirectFile
+
+==================================================
+PHASE 5 – STREAMING STRATEGY (ANTI STREAM FAIL)
+==================================================
+MODE A – REDIRECT (DEFAULT)
+- Backend generate signed URL
+- Backend kirim 302 / 307
+- Browser load media langsung dari CDN
+- 0 bandwidth backend
+
+MODE B – RELAY (FALLBACK)
+- Dipakai jika redirect gagal
+- Backend pipe stream ke client
+- Abort upstream jika client disconnect
+
+==================================================
+PHASE 6 – MEDIA SIZE HELPER
+==================================================
+Tujuan:
+- Filesize jujur
+
+Strategi:
+- mp4/m4a -> exact (Content-Range)
+- webm/opus/ts -> estimated (bitrate x duration)
+- hls -> estimated (bandwidth x duration)
+- live -> unknown
+
+Rule:
+- Jangan janji filesize absolut untuk stream
+ 
+==================================================
+RINGKASAN AKHIR
+==================================================
+- Backend membuka pintu
+- Browser memutar
+- CDN mengirim byte
+
+ANTI STREAM FAIL

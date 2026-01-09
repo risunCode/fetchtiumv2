@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FetchtiumV2 - Media Gateway</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .loader { border-top-color: #3b82f6; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-4xl">
+    
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+        FetchtiumV2
+      </h1>
+      <p class="text-gray-400 mt-2">Media Access Gateway</p>
+    </div>
+
+    <!-- Input Section -->
+    <div class="bg-gray-800 rounded-xl p-6 mb-6 shadow-lg">
+      <div class="flex gap-3">
+        <input 
+          type="text" 
+          id="urlInput" 
+          placeholder="Paste media URL here (Facebook, YouTube, etc...)"
+          class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition"
+        >
+        <button 
+          id="extractBtn"
+          class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2"
+        >
+          <span>Extract</span>
+          <div id="loader" class="hidden w-5 h-5 border-2 border-white border-t-transparent rounded-full loader"></div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Result Section -->
+    <div id="resultSection" class="hidden">
+      
+      <!-- Preview Card -->
+      <div class="bg-gray-800 rounded-xl overflow-hidden shadow-lg mb-6">
+        <div id="previewContainer" class="aspect-video bg-gray-900 flex items-center justify-center">
+          <img id="thumbnail" class="hidden max-h-full" alt="Thumbnail">
+          <video id="videoPlayer" class="hidden w-full" controls></video>
+          <div id="placeholderIcon" class="text-gray-600">
+            <svg class="w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </div>
+        </div>
+        
+        <div class="p-6">
+          <div class="flex items-start justify-between mb-4">
+            <div>
+              <h2 id="mediaTitle" class="text-xl font-semibold mb-1">-</h2>
+              <p id="mediaPlatform" class="text-gray-400 text-sm">-</p>
+            </div>
+            <span id="mediaDuration" class="bg-gray-700 px-3 py-1 rounded-full text-sm">-</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Formats -->
+      <div class="bg-gray-800 rounded-xl p-6 shadow-lg mb-6">
+        <h3 class="text-lg font-semibold mb-4">Available Formats</h3>
+        <div id="formatsList" class="space-y-3"></div>
+      </div>
+
+      <!-- Debug Output -->
+      <details class="bg-gray-800 rounded-xl overflow-hidden shadow-lg">
+        <summary class="px-6 py-4 cursor-pointer hover:bg-gray-700 transition">Debug Output (JSON)</summary>
+        <pre id="debugOutput" class="p-6 bg-gray-900 text-green-400 text-sm overflow-x-auto"></pre>
+      </details>
+    </div>
+
+    <!-- Error Section -->
+    <div id="errorSection" class="hidden bg-red-900/50 border border-red-500 rounded-xl p-6">
+      <p id="errorMessage" class="text-red-300"></p>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center text-gray-500 text-sm mt-12">
+      <p>FetchtiumV2 &copy; 2026 - GPL-3.0 License</p>
+    </footer>
+  </div>
+
+  <script>
+    const API_BASE = '/api';
+    const $ = (sel) => document.querySelector(sel);
+    const hide = (el) => el.classList.add('hidden');
+    const show = (el) => el.classList.remove('hidden');
+
+    const urlInput = $('#urlInput');
+    const extractBtn = $('#extractBtn');
+    const loader = $('#loader');
+
+    extractBtn.addEventListener('click', handleExtract);
+    urlInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleExtract());
+
+    async function handleExtract() {
+      const url = urlInput.value.trim();
+      if (!url) return;
+
+      hide($('#resultSection'));
+      hide($('#errorSection'));
+      show(loader);
+      extractBtn.disabled = true;
+
+      try {
+        const res = await fetch(`${API_BASE}/extract`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Extraction failed');
+        renderResult(data);
+        show($('#resultSection'));
+      } catch (err) {
+        $('#errorMessage').textContent = err.message;
+        show($('#errorSection'));
+      } finally {
+        hide(loader);
+        extractBtn.disabled = false;
+      }
+    }
+
+    function renderResult(data) {
+      const { platform, data: media } = data;
+      $('#mediaTitle').textContent = media.title || 'Untitled';
+      $('#mediaPlatform').textContent = platform.toUpperCase();
+      $('#mediaDuration').textContent = formatDuration(media.duration);
+
+      const thumb = $('#thumbnail'), placeholder = $('#placeholderIcon');
+      hide(thumb); show(placeholder);
+      if (media.thumbnail) { thumb.src = media.thumbnail; show(thumb); hide(placeholder); }
+
+      const formatsList = $('#formatsList');
+      formatsList.innerHTML = '';
+      if (media.formats?.length) {
+        media.formats.forEach((fmt, i) => {
+          const div = document.createElement('div');
+          div.className = 'flex items-center justify-between bg-gray-700 rounded-lg p-4';
+          div.innerHTML = `
+            <div>
+              <span class="font-medium">${fmt.quality || 'Unknown'}</span>
+              <span class="text-gray-400 text-sm ml-2">${fmt.mime || ''}</span>
+              <span class="text-gray-500 text-sm ml-2">${formatSize(fmt.size, fmt.sizeType)}</span>
+            </div>
+            <div class="flex gap-2">
+              <button onclick="handleStream('${media.id}', ${i})" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">Stream</button>
+              <button onclick="handleDownload('${media.id}', ${i})" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm">Download</button>
+            </div>`;
+          formatsList.appendChild(div);
+        });
+      } else {
+        formatsList.innerHTML = '<p class="text-gray-400">No formats available</p>';
+      }
+      $('#debugOutput').textContent = JSON.stringify(data, null, 2);
+    }
+
+    function handleStream(id, idx) { window.open(`${API_BASE}/stream/${id}?format=${idx}`, '_blank'); }
+    function handleDownload(id, idx) { window.location.href = `${API_BASE}/download/${id}?format=${idx}`; }
+    function formatDuration(s) { if (!s) return '-'; return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; }
+    function formatSize(b, t) { if (!b) return t === 'unknown' ? 'Unknown' : '-'; const p = t === 'estimated' ? '~' : ''; return b < 1048576 ? `${p}${(b/1024).toFixed(1)} KB` : `${p}${(b/1048576).toFixed(1)} MB`; }
+  </script>
+</body>
+</html>

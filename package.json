@@ -1,0 +1,36 @@
+{
+  "name": "fetchtiumv2",
+  "version": "0.1.0",
+  "description": "Media Access Gateway Engine",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "media",
+    "extractor",
+    "gateway",
+    "streaming"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "fastify": "^4.25.0",
+    "@fastify/static": "^7.0.0",
+    "@fastify/cors": "^9.0.0",
+    "undici": "^6.6.0",
+    "node-html-parser": "^6.1.0",
+    "pino": "^8.17.0",
+    "pino-pretty": "^10.3.0",
+    "dotenv": "^16.3.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
