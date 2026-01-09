@@ -46,3 +46,7 @@ temp/
 # Cache
 .cache/
 .npm/
+
+# Backup folders
+.Planning
+.Planning/XTFetch-backup-before-APIBackend/
