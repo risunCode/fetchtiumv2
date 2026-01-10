@@ -1,5 +1,14 @@
-// Network layer exports
-// TODO: Implement exports
+/**
+ * Network layer exports
+ */
 
-export * from './client.js';
-export * from './headers.js';
+export { fetchStream, fetchText, resolveUrl, closeConnections, getFileSize, getFileSizes } from './client.js';
+export { 
+  getFacebookHeaders, 
+  getYouTubeHeaders, 
+  getInstagramHeaders,
+  getTikTokHeaders,
+  getTwitterHeaders,
+  getHeadersForPlatform 
+} from './headers.js';
+export { loadCookies, getFacebookCookies, hasValidAuthCookies } from './cookies.js';

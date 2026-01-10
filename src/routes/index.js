@@ -1,6 +1,14 @@
-// Route aggregator
-// TODO: Implement route registration
+/**
+ * Route aggregator
+ */
 
-export function registerRoutes(fastify) {
-  // TODO: Register all routes
+import extractRoute from './extract.route.js';
+import streamRoute from './stream.route.js';
+import downloadRoute from './download.route.js';
+
+export default async function routes(fastify) {
+  // Register routes
+  fastify.register(extractRoute);
+  fastify.register(streamRoute);
+  fastify.register(downloadRoute);
 }

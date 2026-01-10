@@ -6,169 +6,328 @@
   <title>FetchtiumV2 - Media Gateway</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .loader { border-top-color: #3b82f6; animation: spin 1s linear infinite; }
+    .loader { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .modal-bg { background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
   </style>
 </head>
-<body class="bg-gray-900 text-white min-h-screen">
-  <div class="container mx-auto px-4 py-8 max-w-4xl">
+<body class="bg-zinc-950 text-zinc-100 min-h-screen">
+  <div class="container mx-auto px-4 py-8 max-w-3xl">
     
-    <!-- Header -->
-    <div class="text-center mb-8">
-      <h1 class="text-4xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-        FetchtiumV2
-      </h1>
-      <p class="text-gray-400 mt-2">Media Access Gateway</p>
-    </div>
+    <header class="text-center mb-8">
+      <h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">FetchtiumV2</h1>
+      <p class="text-zinc-500 mt-1 text-sm">Media Access Gateway</p>
+    </header>
 
-    <!-- Input Section -->
-    <div class="bg-gray-800 rounded-xl p-6 mb-6 shadow-lg">
-      <div class="flex gap-3">
-        <input 
-          type="text" 
-          id="urlInput" 
-          placeholder="Paste media URL here (Facebook, YouTube, etc...)"
-          class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-blue-500 transition"
-        >
-        <button 
-          id="extractBtn"
-          class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition flex items-center gap-2"
-        >
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-6">
+      <div class="flex flex-col sm:flex-row gap-3">
+        <div class="flex-1 flex gap-2">
+          <input type="text" id="urlInput" placeholder="Paste media URL..." class="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-sm">
+          <button id="pasteBtn" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 p-3 rounded-xl" title="Paste">
+            <svg class="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          </button>
+          <button id="settingsBtn" class="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 p-3 rounded-xl" title="Settings">
+            <svg class="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </button>
+        </div>
+        <button id="extractBtn" class="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2">
+          <svg id="extractIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
           <span>Extract</span>
-          <div id="loader" class="hidden w-5 h-5 border-2 border-white border-t-transparent rounded-full loader"></div>
+          <div id="loader" class="hidden w-4 h-4 border-2 border-white/30 border-t-white rounded-full loader"></div>
         </button>
       </div>
     </div>
 
-    <!-- Result Section -->
-    <div id="resultSection" class="hidden">
-      
-      <!-- Preview Card -->
-      <div class="bg-gray-800 rounded-xl overflow-hidden shadow-lg mb-6">
-        <div id="previewContainer" class="aspect-video bg-gray-900 flex items-center justify-center">
-          <img id="thumbnail" class="hidden max-h-full" alt="Thumbnail">
-          <video id="videoPlayer" class="hidden w-full" controls></video>
-          <div id="placeholderIcon" class="text-gray-600">
-            <svg class="w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-          </div>
+    <div id="resultSection" class="hidden space-y-4">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden">
+        <div class="aspect-video bg-zinc-950 flex items-center justify-center">
+          <img id="thumbnail" class="hidden w-full h-full object-cover" alt="">
+          <svg id="placeholder" class="w-16 h-16 text-zinc-700" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
         </div>
-        
-        <div class="p-6">
-          <div class="flex items-start justify-between mb-4">
-            <div>
-              <h2 id="mediaTitle" class="text-xl font-semibold mb-1">-</h2>
-              <p id="mediaPlatform" class="text-gray-400 text-sm">-</p>
-            </div>
-            <span id="mediaDuration" class="bg-gray-700 px-3 py-1 rounded-full text-sm">-</span>
-          </div>
+        <div class="p-4">
+          <h2 id="mediaTitle" class="text-lg font-semibold mb-1 line-clamp-2">-</h2>
+          <p id="mediaMeta" class="text-zinc-400 text-sm">-</p>
+          <div id="statsRow" class="hidden flex flex-wrap gap-4 mt-3 pt-3 border-t border-zinc-800 text-sm"></div>
         </div>
       </div>
 
-      <!-- Formats -->
-      <div class="bg-gray-800 rounded-xl p-6 shadow-lg mb-6">
-        <h3 class="text-lg font-semibold mb-4">Available Formats</h3>
-        <div id="formatsList" class="space-y-3"></div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold">Formats</h3>
+          <button id="downloadAllBtn" class="hidden bg-purple-600 hover:bg-purple-500 px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+            <span>All</span>
+          </button>
+        </div>
+        <div id="formatsList" class="space-y-2"></div>
       </div>
 
-      <!-- Debug Output -->
-      <details class="bg-gray-800 rounded-xl overflow-hidden shadow-lg">
-        <summary class="px-6 py-4 cursor-pointer hover:bg-gray-700 transition">Debug Output (JSON)</summary>
-        <pre id="debugOutput" class="p-6 bg-gray-900 text-green-400 text-sm overflow-x-auto"></pre>
+      <details class="bg-zinc-900 border border-zinc-800 rounded-2xl">
+        <summary class="px-4 py-3 cursor-pointer hover:bg-zinc-800/50 text-sm text-zinc-400">JSON Response</summary>
+        <pre id="jsonOutput" class="p-4 bg-zinc-950 text-emerald-400 text-xs overflow-x-auto border-t border-zinc-800"></pre>
       </details>
     </div>
 
-    <!-- Error Section -->
-    <div id="errorSection" class="hidden bg-red-900/50 border border-red-500 rounded-xl p-6">
-      <p id="errorMessage" class="text-red-300"></p>
+    <div id="errorSection" class="hidden bg-red-950/50 border border-red-900 rounded-2xl p-4">
+      <p id="errorMsg" class="text-red-300 text-sm"></p>
     </div>
 
-    <!-- Footer -->
-    <footer class="text-center text-gray-500 text-sm mt-12">
-      <p>FetchtiumV2 &copy; 2026 - GPL-3.0 License</p>
-    </footer>
+    <footer class="text-center text-zinc-600 text-xs mt-10">FetchtiumV2 © 2026</footer>
+  </div>
+
+  <div id="modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 modal-bg">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden">
+      <div class="flex items-center justify-between p-4 border-b border-zinc-800">
+        <h3 class="font-semibold">🍪 Cookies</h3>
+        <button id="closeModal" class="text-zinc-500 hover:text-zinc-300 p-1">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-4 space-y-4">
+        <p class="text-zinc-500 text-sm">Paste cookies (JSON/Netscape) for private content.</p>
+        <div class="flex gap-1 bg-zinc-800 p-1 rounded-xl">
+          <button class="platform-tab flex-1 py-2 rounded-lg text-sm bg-blue-600" data-p="facebook">Facebook</button>
+          <button class="platform-tab flex-1 py-2 rounded-lg text-sm text-zinc-400" data-p="instagram">Instagram</button>
+          <button class="platform-tab flex-1 py-2 rounded-lg text-sm text-zinc-400" data-p="tiktok">TikTok</button>
+        </div>
+        <textarea id="cookieInput" placeholder="Paste here..." class="w-full h-28 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none resize-none"></textarea>
+        <div id="cookieStatus" class="text-sm"></div>
+        <div class="flex gap-2">
+          <button id="saveBtn" class="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-sm font-medium">Save</button>
+          <button id="clearBtn" class="bg-zinc-800 hover:bg-zinc-700 px-4 py-2.5 rounded-xl text-sm">Clear</button>
+        </div>
+        <div class="pt-3 border-t border-zinc-800">
+          <p class="text-zinc-500 text-xs mb-2">Saved:</p>
+          <div id="savedList" class="text-sm space-y-1"></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    const API_BASE = '/api';
-    const $ = (sel) => document.querySelector(sel);
-    const hide = (el) => el.classList.add('hidden');
-    const show = (el) => el.classList.remove('hidden');
+    const $ = s => document.querySelector(s);
+    const $$ = s => document.querySelectorAll(s);
+    let result = null, platform = 'facebook';
 
-    const urlInput = $('#urlInput');
-    const extractBtn = $('#extractBtn');
-    const loader = $('#loader');
+    // Cookie
+    function parse(t) {
+      t = t.trim();
+      if (t[0] === '[' || t[0] === '{') {
+        try {
+          let d = JSON.parse(t); if (!Array.isArray(d)) d = [d];
+          const lines = ['# Netscape'];
+          d.forEach(c => { if (c.name && c.value) lines.push([c.domain||'.facebook.com','TRUE',c.path||'/','TRUE',Math.floor(c.expirationDate||Date.now()/1000+31536000),c.name,c.value].join('\t')); });
+          return { ok: true, data: lines.join('\n'), n: lines.length-1, f: 'JSON' };
+        } catch(e) { return { ok: false, e: e.message }; }
+      }
+      const lines = t.split('\n').filter(l => l.trim() && !l.startsWith('#') && l.split('\t').length >= 7);
+      return lines.length ? { ok: true, data: '# Netscape\n'+lines.join('\n'), n: lines.length, f: 'Netscape' } : { ok: false, e: 'Invalid format' };
+    }
+    const save = (p,d) => localStorage.setItem('ck_'+p, d);
+    const get = p => localStorage.getItem('ck_'+p) || '';
+    const clear = p => localStorage.removeItem('ck_'+p);
+    function updateList() {
+      $('#savedList').innerHTML = ['facebook','instagram','tiktok'].map(p => {
+        const c = (get(p).match(/\n/g)||[]).length;
+        return '<div class="flex justify-between"><span class="capitalize">'+p+'</span><span class="'+(c?'text-emerald-400':'text-zinc-600')+'">'+(c?'✓ '+c:'—')+'</span></div>';
+      }).join('');
+    }
 
-    extractBtn.addEventListener('click', handleExtract);
-    urlInput.addEventListener('keypress', (e) => e.key === 'Enter' && handleExtract());
+    // Modal
+    $('#settingsBtn').onclick = () => { $('#modal').classList.remove('hidden'); updateList(); $('#cookieInput').value=''; $('#cookieStatus').textContent=''; };
+    $('#closeModal').onclick = () => $('#modal').classList.add('hidden');
+    $('#modal').onclick = e => { if (e.target.id==='modal') $('#modal').classList.add('hidden'); };
+    $$('.platform-tab').forEach(t => t.onclick = () => {
+      $$('.platform-tab').forEach(x => { x.classList.remove('bg-blue-600'); x.classList.add('text-zinc-400'); });
+      t.classList.add('bg-blue-600'); t.classList.remove('text-zinc-400');
+      platform = t.dataset.p;
+    });
+    $('#saveBtn').onclick = () => {
+      const t = $('#cookieInput').value;
+      if (!t.trim()) { $('#cookieStatus').innerHTML = '<span class="text-amber-400">Paste first</span>'; return; }
+      const r = parse(t);
+      if (r.ok) { save(platform, r.data); $('#cookieStatus').innerHTML = '<span class="text-emerald-400">✓ Saved '+r.n+' ('+r.f+')</span>'; updateList(); $('#cookieInput').value=''; }
+      else $('#cookieStatus').innerHTML = '<span class="text-red-400">'+r.e+'</span>';
+    };
+    $('#clearBtn').onclick = () => { clear(platform); $('#cookieStatus').innerHTML = '<span class="text-zinc-400">Cleared</span>'; updateList(); };
 
-    async function handleExtract() {
-      const url = urlInput.value.trim();
-      if (!url) return;
+    // Main
+    $('#pasteBtn').onclick = async () => { try { $('#urlInput').value = await navigator.clipboard.readText(); } catch{} };
+    $('#extractBtn').onclick = extract;
+    $('#urlInput').onkeypress = e => e.key==='Enter' && extract();
+    $('#downloadAllBtn').onclick = async () => {
+      if (!result?.items?.length) return;
+      const btn = $('#downloadAllBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<svg class="w-4 h-4 loader" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg><span>0/' + result.items.length + '</span>';
+      
+      for (let i = 0; i < result.items.length; i++) {
+        const item = result.items[i];
+        const src = item.sources[0];
+        if (!src) continue;
+        
+        btn.querySelector('span').textContent = (i+1) + '/' + result.items.length;
+        
+        const ext = item.type === 'video' ? 'mp4' : 'jpg';
+        const filename = (result.title || 'media').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + (i+1) + '.' + ext;
+        
+        try {
+          // Step 1: Try direct download (no CORS issue for same-origin or allowed CDNs)
+          const directRes = await fetch(src.url, { mode: 'cors' }).catch(() => null);
+          
+          if (directRes?.ok) {
+            // Direct download works
+            const blob = await directRes.blob();
+            triggerDownload(blob, filename);
+          } else {
+            // Step 2: Fallback to proxy relay
+            const proxyRes = await fetch('/api/download?url=' + encodeURIComponent(src.url));
+            if (!proxyRes.ok) throw new Error('Download failed');
+            const blob = await proxyRes.blob();
+            triggerDownload(blob, filename);
+          }
+          
+          // Small delay between downloads
+          if (i < result.items.length - 1) await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
+          console.error('Download failed for item', i+1, e);
+        }
+      }
+      
+      btn.disabled = false;
+      btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg><span>All</span>';
+    };
+    
+    function triggerDownload(blob, filename) {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    }
 
-      hide($('#resultSection'));
-      hide($('#errorSection'));
-      show(loader);
-      extractBtn.disabled = true;
+    async function extract() {
+      const url = $('#urlInput').value.trim(); if (!url) return;
+      $('#resultSection').classList.add('hidden');
+      $('#errorSection').classList.add('hidden');
+      $('#loader').classList.remove('hidden');
+      $('#extractIcon').classList.add('hidden');
+      $('#extractBtn').disabled = true;
 
       try {
-        const res = await fetch(`${API_BASE}/extract`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
-        });
+        const res = await fetch('/api/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
         const data = await res.json();
-        if (!res.ok || !data.success) throw new Error(data.error || 'Extraction failed');
-        renderResult(data);
-        show($('#resultSection'));
-      } catch (err) {
-        $('#errorMessage').textContent = err.message;
-        show($('#errorSection'));
+        if (!data.success) throw new Error(data.error?.message || 'Failed');
+        result = data;
+        render(data);
+        $('#resultSection').classList.remove('hidden');
+      } catch (e) {
+        $('#errorMsg').textContent = e.message;
+        $('#errorSection').classList.remove('hidden');
       } finally {
-        hide(loader);
-        extractBtn.disabled = false;
+        $('#loader').classList.add('hidden');
+        $('#extractIcon').classList.remove('hidden');
+        $('#extractBtn').disabled = false;
       }
     }
 
-    function renderResult(data) {
-      const { platform, data: media } = data;
-      $('#mediaTitle').textContent = media.title || 'Untitled';
-      $('#mediaPlatform').textContent = platform.toUpperCase();
-      $('#mediaDuration').textContent = formatDuration(media.duration);
+    function render(d) {
+      $('#mediaTitle').textContent = d.title || 'Untitled';
+      let meta = d.platform.toUpperCase();
+      if (d.contentType) meta += ' • ' + d.contentType;
+      if (d.author) meta += ' • ' + d.author;
+      if (d.items?.length > 1) meta += ' • ' + d.items.length + ' items';
+      $('#mediaMeta').textContent = meta;
 
-      const thumb = $('#thumbnail'), placeholder = $('#placeholderIcon');
-      hide(thumb); show(placeholder);
-      if (media.thumbnail) { thumb.src = media.thumbnail; show(thumb); hide(placeholder); }
-
-      const formatsList = $('#formatsList');
-      formatsList.innerHTML = '';
-      if (media.formats?.length) {
-        media.formats.forEach((fmt, i) => {
-          const div = document.createElement('div');
-          div.className = 'flex items-center justify-between bg-gray-700 rounded-lg p-4';
-          div.innerHTML = `
-            <div>
-              <span class="font-medium">${fmt.quality || 'Unknown'}</span>
-              <span class="text-gray-400 text-sm ml-2">${fmt.mime || ''}</span>
-              <span class="text-gray-500 text-sm ml-2">${formatSize(fmt.size, fmt.sizeType)}</span>
-            </div>
-            <div class="flex gap-2">
-              <button onclick="handleStream('${media.id}', ${i})" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm">Stream</button>
-              <button onclick="handleDownload('${media.id}', ${i})" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm">Download</button>
-            </div>`;
-          formatsList.appendChild(div);
-        });
+      // Stats
+      const statsRow = $('#statsRow');
+      statsRow.innerHTML = '';
+      if (d.stats && Object.keys(d.stats).length) {
+        statsRow.classList.remove('hidden');
+        const icons = { views: '👁️', likes: '❤️', comments: '💬', shares: '🔄' };
+        const labels = { views: 'Views', likes: 'Likes', comments: 'Comments', shares: 'Shares' };
+        for (const [k, v] of Object.entries(d.stats)) {
+          if (v) {
+            const s = document.createElement('span');
+            s.className = 'text-zinc-400';
+            s.textContent = (icons[k]||'') + ' ' + fmtNum(v) + ' ' + (labels[k]||k);
+            statsRow.appendChild(s);
+          }
+        }
       } else {
-        formatsList.innerHTML = '<p class="text-gray-400">No formats available</p>';
+        statsRow.classList.add('hidden');
       }
-      $('#debugOutput').textContent = JSON.stringify(data, null, 2);
+
+      const thumb = $('#thumbnail'), ph = $('#placeholder');
+      if (d.items?.[0]?.thumbnail) { thumb.src = d.items[0].thumbnail; thumb.classList.remove('hidden'); ph.classList.add('hidden'); }
+      else { thumb.classList.add('hidden'); ph.classList.remove('hidden'); }
+
+      d.items?.length > 1 ? $('#downloadAllBtn').classList.remove('hidden') : $('#downloadAllBtn').classList.add('hidden');
+
+      const list = $('#formatsList'); list.innerHTML = '';
+      if (!d.items?.length) { list.innerHTML = '<p class="text-zinc-500 text-sm">No formats</p>'; return; }
+
+      d.items.forEach(item => {
+        if (d.items.length > 1) {
+          const h = document.createElement('div');
+          h.className = 'text-zinc-500 text-xs mt-3 mb-1';
+          h.textContent = (item.type==='video'?'🎬':'🖼️') + ' Item ' + (item.index+1);
+          list.appendChild(h);
+        }
+        item.sources.forEach(src => {
+          const row = document.createElement('div');
+          row.className = 'flex items-center justify-between bg-zinc-800/50 border border-zinc-800 rounded-xl p-3';
+          
+          const info = document.createElement('div');
+          info.className = 'min-w-0';
+          const q = document.createElement('span');
+          q.className = 'font-medium text-sm';
+          q.textContent = src.quality.toUpperCase() + (src.resolution ? ' ('+src.resolution+')' : '');
+          const m = document.createElement('span');
+          m.className = 'text-zinc-500 text-xs ml-2';
+          m.textContent = (src.mime||item.type) + (src.size ? ' • '+fmtSize(src.size) : '');
+          info.appendChild(q); info.appendChild(m);
+
+          const btns = document.createElement('div');
+          btns.className = 'flex gap-1.5';
+          
+          const openBtn = document.createElement('button');
+          openBtn.className = 'bg-zinc-700 hover:bg-zinc-600 p-2 rounded-lg';
+          openBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>';
+          openBtn.onclick = () => window.open(src.url, '_blank');
+
+          const dlBtn = document.createElement('a');
+          dlBtn.href = src.url;
+          dlBtn.download = '';
+          dlBtn.className = 'bg-emerald-600 hover:bg-emerald-500 p-2 rounded-lg';
+          dlBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>';
+
+          btns.appendChild(openBtn);
+          btns.appendChild(dlBtn);
+          row.appendChild(info);
+          row.appendChild(btns);
+          list.appendChild(row);
+        });
+      });
+
+      $('#jsonOutput').textContent = JSON.stringify(d, null, 2);
     }
 
-    function handleStream(id, idx) { window.open(`${API_BASE}/stream/${id}?format=${idx}`, '_blank'); }
-    function handleDownload(id, idx) { window.location.href = `${API_BASE}/download/${id}?format=${idx}`; }
-    function formatDuration(s) { if (!s) return '-'; return `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`; }
-    function formatSize(b, t) { if (!b) return t === 'unknown' ? 'Unknown' : '-'; const p = t === 'estimated' ? '~' : ''; return b < 1048576 ? `${p}${(b/1024).toFixed(1)} KB` : `${p}${(b/1048576).toFixed(1)} MB`; }
+    function fmtSize(b) {
+      if (b < 1024) return b + ' B';
+      if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+      if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+      return (b/1073741824).toFixed(2) + ' GB';
+    }
+
+    function fmtNum(n) {
+      if (n >= 1000000000) return (n/1000000000).toFixed(1) + 'B';
+      if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+      return n.toLocaleString();
+    }
   </script>
 </body>
 </html>
