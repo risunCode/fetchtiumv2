@@ -22,6 +22,8 @@ const agent = new Agent({
  * Fetch URL with streaming support and proper redirect tracking
  */
 export async function fetchStream(url, options = {}) {
+  trackRequest(); // Track for connection status
+  
   const {
     headers = {},
     method = 'GET',
@@ -164,6 +166,29 @@ export async function resolveUrl(url, options = {}) {
 export async function closeConnections() {
   await agent.close();
   logger.info('network', 'Connections closed');
+}
+
+/**
+ * Get connection pool stats
+ * @returns {object} Connection stats
+ */
+let lastRequestTime = null;
+
+export function getConnectionStats() {
+  const now = Date.now();
+  const keepAliveTimeout = 60000; // 60s
+  const isWarm = lastRequestTime && (now - lastRequestTime) < keepAliveTimeout;
+  
+  return {
+    isWarm,
+    lastRequestTime,
+    timeSinceLastRequest: lastRequestTime ? now - lastRequestTime : null,
+    keepAliveTimeout
+  };
+}
+
+export function trackRequest() {
+  lastRequestTime = Date.now();
 }
 
 /**

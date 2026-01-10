@@ -2,13 +2,9 @@
  * Route aggregator
  */
 
-import extractRoute from './extract.route.js';
-import streamRoute from './stream.route.js';
-import downloadRoute from './download.route.js';
+import v1Routes from './v1/index.js';
 
 export default async function routes(fastify) {
-  // Register routes
-  fastify.register(extractRoute);
-  fastify.register(streamRoute);
-  fastify.register(downloadRoute);
+  // Register V1 API routes with access control
+  fastify.register(v1Routes, { prefix: '/v1' });
 }

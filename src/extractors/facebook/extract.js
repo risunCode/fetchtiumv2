@@ -455,6 +455,44 @@ export function extractMetadata(html, url) {
     const match = html.match(METADATA_PATTERNS.views[i]);
     if (match) { metadata.engagement.views = parseEngagement(match[1]); break; }
   }
+  
+  // Fallback: extract stats from title (Facebook often embeds "9.7K views · 232 reactions")
+  const titleMatch = html.match(/property="og:title"\s+content="([^"]+)"/) ||
+                     html.match(/"title":\{"text":"([^"]+)"/);
+  if (titleMatch) {
+    const titleText = titleMatch[1];
+    
+    // Views from title
+    if (!metadata.engagement.views) {
+      const viewMatch = titleText.match(/([\d.,]+[KMB]?)\s*(?:views|Views|lượt xem|tayangan|次观看|回視聴)/i);
+      if (viewMatch) metadata.engagement.views = parseEngagement(viewMatch[1]);
+    }
+    
+    // Likes/reactions from title
+    if (!metadata.engagement.likes) {
+      const likeMatch = titleText.match(/([\d.,]+[KMB]?)\s*(?:reactions|likes|reaksi|lượt thích)/i);
+      if (likeMatch) metadata.engagement.likes = parseEngagement(likeMatch[1]);
+    }
+    
+    // Comments from title
+    if (!metadata.engagement.comments) {
+      const commentMatch = titleText.match(/([\d.,]+[KMB]?)\s*(?:comments|komentar|bình luận)/i);
+      if (commentMatch) metadata.engagement.comments = parseEngagement(commentMatch[1]);
+    }
+    
+    // Shares from title
+    if (!metadata.engagement.shares) {
+      const shareMatch = titleText.match(/([\d.,]+[KMB]?)\s*(?:shares|bagikan|chia sẻ)/i);
+      if (shareMatch) metadata.engagement.shares = parseEngagement(shareMatch[1]);
+    }
+  }
+
+  // Debug: log engagement extraction result
+  if (Object.keys(metadata.engagement).length > 0) {
+    logger.debug('facebook', 'Engagement found', metadata.engagement);
+  } else {
+    logger.debug('facebook', 'No engagement data found');
+  }
 
   return metadata;
 }

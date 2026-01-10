@@ -1,55 +1,86 @@
 /**
- * Extractor registry
+ * Extractor registry - Self-registering extractors
+ * 
+ * Each extractor defines its own URL patterns via static `patterns` property.
+ * Registry loops through all extractors and calls `match(url)` to find the right one.
  */
 
-import { detectPlatform } from '../utils/url.utils.js';
 import { ExtractorError, ErrorCode } from '../utils/error.utils.js';
 import { logger } from '../utils/logger.js';
+
+// Import all extractors
 import FacebookExtractor from './facebook/index.js';
+// import YouTubeExtractor from './youtube/index.js';
+// import InstagramExtractor from './instagram/index.js';
+// ... add more as implemented
 
-const extractors = {
-  facebook: FacebookExtractor
-};
+/**
+ * All registered extractors
+ * Order matters - first match wins
+ */
+const extractors = [
+  FacebookExtractor,
+  // YouTubeExtractor,
+  // InstagramExtractor,
+  // TikTokExtractor,
+  // TwitterExtractor,
+];
 
+/**
+ * Find extractor by URL
+ * Loops through all extractors, calls static match()
+ */
 export function getExtractor(url) {
-  const platform = detectPlatform(url);
-  
-  if (!platform) {
-    logger.warn('extractor', 'Platform not detected', { url });
-    throw new ExtractorError(
-      ErrorCode.UNSUPPORTED_PLATFORM,
-      'Platform not supported or URL invalid'
-    );
+  for (const Extractor of extractors) {
+    if (Extractor.match(url)) {
+      logger.info('extractor', 'Matched', { platform: Extractor.platform });
+      return new Extractor();
+    }
   }
-
-  const ExtractorClass = extractors[platform];
   
-  if (!ExtractorClass) {
-    logger.warn('extractor', 'Extractor not implemented', { platform });
-    throw new ExtractorError(
-      ErrorCode.UNSUPPORTED_PLATFORM,
-      `Platform "${platform}" not yet implemented`
-    );
-  }
-
-  logger.info('extractor', 'Extractor found', { platform });
-  return new ExtractorClass();
+  logger.warn('extractor', 'No extractor found', { url });
+  throw new ExtractorError(
+    ErrorCode.UNSUPPORTED_PLATFORM,
+    'Platform not supported or URL invalid'
+  );
 }
 
+/**
+ * Detect platform from URL (for info only)
+ */
+export function detectPlatform(url) {
+  for (const Extractor of extractors) {
+    if (Extractor.match(url)) {
+      return Extractor.platform;
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if URL is supported
+ */
 export function isSupported(url) {
-  try {
-    const platform = detectPlatform(url);
-    return platform && extractors[platform] !== undefined;
-  } catch (error) {
-    return false;
-  }
+  return extractors.some(E => E.match(url));
 }
 
+/**
+ * Get all supported platforms with their patterns
+ */
 export function getSupportedPlatforms() {
-  return Object.keys(extractors);
+  return extractors.map(E => ({
+    platform: E.platform,
+    patterns: E.patterns.map(p => p.toString())
+  }));
 }
 
-export function registerExtractor(platform, ExtractorClass) {
-  extractors[platform] = ExtractorClass;
-  logger.info('extractor', 'Extractor registered', { platform });
+/**
+ * Register a new extractor dynamically
+ */
+export function registerExtractor(ExtractorClass) {
+  if (!ExtractorClass.platform || !ExtractorClass.patterns) {
+    throw new Error('Extractor must have static platform and patterns');
+  }
+  extractors.push(ExtractorClass);
+  logger.info('extractor', 'Registered', { platform: ExtractorClass.platform });
 }

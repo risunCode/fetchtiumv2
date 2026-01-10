@@ -36,7 +36,7 @@ export class FacebookExtractor extends BaseExtractor {
 
   async extract(inputUrl, options = {}) {
     const startTime = Date.now();
-    const { signal, timeout } = options;
+    const { signal, timeout, cookie } = options;
 
     try {
       const normalizedUrl = normalizeUrl(inputUrl);
@@ -73,7 +73,8 @@ export class FacebookExtractor extends BaseExtractor {
         signal,
         timeout,
         useCookies: useCookiesFirst,
-        inputUrl
+        inputUrl,
+        clientCookie: cookie
       });
 
       // Retry with cookies if:
@@ -91,7 +92,8 @@ export class FacebookExtractor extends BaseExtractor {
           signal,
           timeout,
           useCookies: true,
-          inputUrl
+          inputUrl,
+          clientCookie: cookie
         });
       }
 
@@ -116,15 +118,18 @@ export class FacebookExtractor extends BaseExtractor {
    * Internal extraction with optional cookie auth
    */
   async _extractWithAuth(finalUrl, contentType, options = {}) {
-    const { signal, timeout, useCookies, inputUrl } = options;
+    const { signal, timeout, useCookies, inputUrl, clientCookie } = options;
 
     // Build headers
     const headers = getFacebookHeaders('ipad');
+    let actuallyUsedCookie = false;
     
     if (useCookies) {
-      const cookies = await getFacebookCookies();
+      // Pass client cookie to getFacebookCookies for priority handling
+      const cookies = await getFacebookCookies({ clientCookie });
       if (hasValidAuthCookies(cookies)) {
         headers['Cookie'] = cookies;
+        actuallyUsedCookie = true;
       } else {
         logger.warn('facebook', 'No valid cookies found');
       }
@@ -267,13 +272,18 @@ export class FacebookExtractor extends BaseExtractor {
       if (size) format.size = size;
     }
 
-    return buildExtractResult({
+    const result = buildExtractResult({
       url: inputUrl,
       id: extractPostId(redirectedUrl || finalUrl) || extractVideoId(redirectedUrl || finalUrl),
       contentType: actualType,
       formats,
       metadata
     });
+    
+    // Add flag for cookie usage tracking
+    result.usedCookie = actuallyUsedCookie;
+    
+    return result;
   }
 }
 

@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/png" href="/icon.png">
+  <link rel="apple-touch-icon" href="/icon-512.png">
   <title>FetchtiumV2 - Media Gateway</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     .loader { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .modal-bg { background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); }
+    .player-modal { background: rgba(0,0,0,0.95); backdrop-filter: blur(8px); }
   </style>
 </head>
 <body class="bg-zinc-950 text-zinc-100 min-h-screen">
@@ -17,6 +20,10 @@
     <header class="text-center mb-8">
       <h1 class="text-3xl md:text-4xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">FetchtiumV2</h1>
       <p class="text-zinc-500 mt-1 text-sm">Media Access Gateway</p>
+      <div id="statusCard" class="inline-flex items-center gap-2 mt-3 px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-full text-xs">
+        <span id="statusDot" class="w-2 h-2 rounded-full bg-zinc-600"></span>
+        <span id="statusText" class="text-zinc-500">Checking...</span>
+      </div>
     </header>
 
     <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 mb-6">
@@ -63,7 +70,10 @@
       </div>
 
       <details class="bg-zinc-900 border border-zinc-800 rounded-2xl">
-        <summary class="px-4 py-3 cursor-pointer hover:bg-zinc-800/50 text-sm text-zinc-400">JSON Response</summary>
+        <summary class="px-4 py-3 cursor-pointer hover:bg-zinc-800/50 text-sm text-zinc-400 flex items-center justify-between">
+          <span>JSON Response</span>
+          <button id="copyJsonBtn" class="bg-zinc-700 hover:bg-zinc-600 px-2 py-1 rounded text-xs">📋 Copy</button>
+        </summary>
         <pre id="jsonOutput" class="p-4 bg-zinc-950 text-emerald-400 text-xs overflow-x-auto border-t border-zinc-800"></pre>
       </details>
     </div>
@@ -104,10 +114,64 @@
     </div>
   </div>
 
+  <div id="playerModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 player-modal">
+    <button id="closePlayer" class="absolute top-4 right-4 text-white/70 hover:text-white p-2 z-10">
+      <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    <div id="playerContainer" class="w-full max-w-4xl">
+      <video id="videoPlayer" class="hidden w-full rounded-xl" controls playsinline></video>
+      <audio id="audioPlayer" class="hidden w-full" controls></audio>
+    </div>
+  </div>
+
   <script>
     const $ = s => document.querySelector(s);
     const $$ = s => document.querySelectorAll(s);
     let result = null, platform = 'facebook';
+
+    // Player
+    async function openPlayer(url, type) {
+      const modal = $('#playerModal');
+      const video = $('#videoPlayer');
+      const audio = $('#audioPlayer');
+      
+      video.classList.add('hidden');
+      audio.classList.add('hidden');
+      video.src = '';
+      audio.src = '';
+      
+      // Always use proxy for streaming
+      const streamUrl = '/v1/stream?url=' + encodeURIComponent(url);
+      
+      if (type === 'video') {
+        video.src = streamUrl;
+        video.classList.remove('hidden');
+        video.play().catch(() => {});
+      } else if (type === 'audio') {
+        audio.src = streamUrl;
+        audio.classList.remove('hidden');
+        audio.play().catch(() => {});
+      }
+      
+      modal.classList.remove('hidden');
+    }
+    
+    function closePlayer() {
+      const modal = $('#playerModal');
+      const video = $('#videoPlayer');
+      const audio = $('#audioPlayer');
+      
+      video.pause();
+      audio.pause();
+      video.src = '';
+      audio.src = '';
+      
+      modal.classList.add('hidden');
+    }
+    
+    $('#closePlayer').onclick = closePlayer;
+    $('#playerModal').onclick = e => { if (e.target.id === 'playerModal') closePlayer(); };
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closePlayer(); });
 
     // Cookie
     function parse(t) {
@@ -152,7 +216,12 @@
     $('#clearBtn').onclick = () => { clear(platform); $('#cookieStatus').innerHTML = '<span class="text-zinc-400">Cleared</span>'; updateList(); };
 
     // Main
-    $('#pasteBtn').onclick = async () => { try { $('#urlInput').value = await navigator.clipboard.readText(); } catch{} };
+    $('#pasteBtn').onclick = async () => { 
+      try { 
+        const pasted = await navigator.clipboard.readText();
+        $('#urlInput').value = sanitizeUrl(pasted); 
+      } catch{} 
+    };
     $('#extractBtn').onclick = extract;
     $('#urlInput').onkeypress = e => e.key==='Enter' && extract();
     $('#downloadAllBtn').onclick = async () => {
@@ -169,23 +238,18 @@
         btn.querySelector('span').textContent = (i+1) + '/' + result.items.length;
         
         const ext = item.type === 'video' ? 'mp4' : 'jpg';
-        const filename = (result.title || 'media').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30) + '_' + (i+1) + '.' + ext;
+        const sanitize = (s) => s.replace(/[<>:"/\\|?*\x00-\x1f]/g, '').replace(/\s+/g, '_').trim();
+        const author = sanitize(result.author || 'unknown').substring(0, 20);
+        const contentType = result.contentType || 'media';
+        const title = sanitize(result.title || 'untitled').substring(0, 15);
+        const filename = `${author}_${contentType}_${title}_${i+1}.${ext}`;
         
         try {
-          // Step 1: Try direct download (no CORS issue for same-origin or allowed CDNs)
-          const directRes = await fetch(src.url, { mode: 'cors' }).catch(() => null);
-          
-          if (directRes?.ok) {
-            // Direct download works
-            const blob = await directRes.blob();
-            triggerDownload(blob, filename);
-          } else {
-            // Step 2: Fallback to proxy relay
-            const proxyRes = await fetch('/api/download?url=' + encodeURIComponent(src.url));
-            if (!proxyRes.ok) throw new Error('Download failed');
-            const blob = await proxyRes.blob();
-            triggerDownload(blob, filename);
-          }
+          const filename = src.filename || `download_${i+1}.mp4`;
+          const res = await fetch('/v1/download?url=' + encodeURIComponent(src.url));
+          if (!res.ok) throw new Error('Download failed');
+          const blob = await res.blob();
+          triggerDownload(blob, filename);
           
           // Small delay between downloads
           if (i < result.items.length - 1) await new Promise(r => setTimeout(r, 500));
@@ -208,8 +272,48 @@
       URL.revokeObjectURL(a.href);
     }
 
+    // Input sanitization
+    function sanitizeUrl(input) {
+      if (!input) return '';
+      
+      // Remove dangerous characters (command injection, template literals)
+      let clean = input
+        .replace(/[`${}]/g, '')           // Backticks, template literals
+        .replace(/[<>]/g, '')             // HTML injection
+        .replace(/[\x00-\x1f]/g, '')      // Control characters
+        .replace(/javascript:/gi, '')      // JS protocol
+        .replace(/data:/gi, '')           // Data protocol
+        .replace(/file:/gi, '')           // File protocol
+        .replace(/vbscript:/gi, '')       // VBScript
+        .trim();
+      
+      // Must start with http:// or https://
+      if (!/^https?:\/\//i.test(clean)) {
+        // Try to fix common mistakes
+        if (/^www\./i.test(clean)) {
+          clean = 'https://' + clean;
+        } else if (/^[a-z0-9-]+\.[a-z]{2,}/i.test(clean)) {
+          clean = 'https://' + clean;
+        }
+      }
+      
+      return clean;
+    }
+
     async function extract() {
-      const url = $('#urlInput').value.trim(); if (!url) return;
+      const rawUrl = $('#urlInput').value.trim();
+      if (!rawUrl) return;
+      
+      const url = sanitizeUrl(rawUrl);
+      if (!url || !/^https?:\/\//i.test(url)) {
+        $('#errorMsg').textContent = 'Please enter a valid URL';
+        $('#errorSection').classList.remove('hidden');
+        return;
+      }
+      
+      // Update input with sanitized URL
+      $('#urlInput').value = url;
+      
       $('#resultSection').classList.add('hidden');
       $('#errorSection').classList.add('hidden');
       $('#loader').classList.remove('hidden');
@@ -217,7 +321,14 @@
       $('#extractBtn').disabled = true;
 
       try {
-        const res = await fetch('/api/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) });
+        // Detect platform from URL and get saved cookie
+        const detectedPlatform = detectPlatformFromUrl(url);
+        const cookie = detectedPlatform ? get(detectedPlatform) : '';
+        
+        const body = { url };
+        if (cookie) body.cookie = cookie;
+        
+        const res = await fetch('/v1/extract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json();
         if (!data.success) throw new Error(data.error?.message || 'Failed');
         result = data;
@@ -232,6 +343,15 @@
         $('#extractBtn').disabled = false;
       }
     }
+    
+    // Detect platform from URL for cookie selection
+    function detectPlatformFromUrl(url) {
+      const u = url.toLowerCase();
+      if (u.includes('facebook.com') || u.includes('fb.watch') || u.includes('fb.me')) return 'facebook';
+      if (u.includes('instagram.com') || u.includes('instagr.am')) return 'instagram';
+      if (u.includes('tiktok.com')) return 'tiktok';
+      return null;
+    }
 
     function render(d) {
       $('#mediaTitle').textContent = d.title || 'Untitled';
@@ -239,6 +359,11 @@
       if (d.contentType) meta += ' • ' + d.contentType;
       if (d.author) meta += ' • ' + d.author;
       if (d.items?.length > 1) meta += ' • ' + d.items.length + ' items';
+      // Add meta info (publicContent, responseTime)
+      if (d.meta) {
+        meta += ' • ' + (d.meta.publicContent ? '🌐 Public' : '🔒 Private');
+        if (d.meta.responseTime) meta += ' • ' + (d.meta.responseTime / 1000).toFixed(1) + 's';
+      }
       $('#mediaMeta').textContent = meta;
 
       // Stats
@@ -293,16 +418,47 @@
           const btns = document.createElement('div');
           btns.className = 'flex gap-1.5';
           
+          // Play button (video/audio only)
+          if (item.type === 'video' || item.type === 'audio') {
+            const playBtn = document.createElement('button');
+            playBtn.className = 'bg-blue-600 hover:bg-blue-500 p-2 rounded-lg';
+            playBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            playBtn.title = 'Play';
+            playBtn.onclick = () => openPlayer(src.url, item.type);
+            btns.appendChild(playBtn);
+          }
+          
           const openBtn = document.createElement('button');
           openBtn.className = 'bg-zinc-700 hover:bg-zinc-600 p-2 rounded-lg';
           openBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>';
           openBtn.onclick = () => window.open(src.url, '_blank');
 
-          const dlBtn = document.createElement('a');
-          dlBtn.href = src.url;
-          dlBtn.download = '';
+          const dlBtn = document.createElement('button');
           dlBtn.className = 'bg-emerald-600 hover:bg-emerald-500 p-2 rounded-lg';
           dlBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>';
+          dlBtn.onclick = async () => {
+            dlBtn.disabled = true;
+            dlBtn.innerHTML = '<svg class="w-4 h-4 loader" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>';
+            
+            const ext = item.type === 'video' ? 'mp4' : (item.type === 'audio' ? 'mp3' : 'jpg');
+            const author = (result.author || 'unknown').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 20);
+            const contentType = result.contentType || 'media';
+            const title = (result.title || 'untitled').replace(/[^a-zA-Z0-9]/g, '_').substring(0, 15);
+            const filename = `${author}_${contentType}_${title}_${src.quality}.${ext}`;
+            
+            try {
+              const filename = src.filename || `download_${src.quality}.mp4`;
+              const res = await fetch('/v1/download?url=' + encodeURIComponent(src.url));
+              if (!res.ok) throw new Error('Download failed');
+              const blob = await res.blob();
+              triggerDownload(blob, filename);
+            } catch (e) {
+              alert('Download failed: ' + e.message);
+            }
+            
+            dlBtn.disabled = false;
+            dlBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>';
+          };
 
           btns.appendChild(openBtn);
           btns.appendChild(dlBtn);
@@ -314,6 +470,17 @@
 
       $('#jsonOutput').textContent = JSON.stringify(d, null, 2);
     }
+
+    function copyJson() {
+      const json = $('#jsonOutput').textContent;
+      navigator.clipboard.writeText(json).then(() => {
+        const btn = $('#copyJsonBtn');
+        btn.textContent = '✓ Copied';
+        setTimeout(() => { btn.textContent = '📋 Copy'; }, 1500);
+      }).catch(() => {});
+    }
+    
+    $('#copyJsonBtn').onclick = (e) => { e.stopPropagation(); copyJson(); };
 
     function fmtSize(b) {
       if (b < 1024) return b + ' B';
@@ -328,6 +495,41 @@
       if (n >= 1000) return (n/1000).toFixed(1) + 'K';
       return n.toLocaleString();
     }
+
+    // Status via SSE (real-time, no polling spam)
+    function initStatusStream() {
+      const events = new EventSource('/v1/events');
+      
+      events.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.type !== 'status') return;
+          
+          const dot = $('#statusDot');
+          const text = $('#statusText');
+          
+          if (data.status === 'warm') {
+            const remaining = Math.ceil((data.keepAliveTimeout - data.timeSinceLastRequest) / 1000);
+            dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse';
+            text.className = 'text-emerald-400';
+            text.textContent = 'Warm • ' + remaining + 's left';
+          } else {
+            dot.className = 'w-2 h-2 rounded-full bg-zinc-600';
+            text.className = 'text-zinc-500';
+            text.textContent = 'Cold • Ready';
+          }
+        } catch {}
+      };
+      
+      events.onerror = () => {
+        $('#statusDot').className = 'w-2 h-2 rounded-full bg-red-500';
+        $('#statusText').className = 'text-red-400';
+        $('#statusText').textContent = 'Offline';
+        // Auto-reconnect is built into EventSource
+      };
+    }
+    
+    initStatusStream();
   </script>
 </body>
 </html>

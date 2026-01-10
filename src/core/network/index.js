@@ -2,7 +2,7 @@
  * Network layer exports
  */
 
-export { fetchStream, fetchText, resolveUrl, closeConnections, getFileSize, getFileSizes } from './client.js';
+export { fetchStream, fetchText, resolveUrl, closeConnections, getFileSize, getFileSizes, getConnectionStats, trackRequest } from './client.js';
 export { 
   getFacebookHeaders, 
   getYouTubeHeaders, 

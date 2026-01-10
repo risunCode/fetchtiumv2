@@ -8,6 +8,18 @@ import { config as dotenvConfig } from 'dotenv';
 // Load .env file
 dotenvConfig();
 
+// Parse comma-separated list from env
+const parseList = (envValue, defaults = []) => {
+  if (!envValue) return defaults;
+  return envValue.split(',').map(s => s.trim()).filter(Boolean);
+};
+
+// Default allowed origins for public mode
+const DEFAULT_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000'
+];
+
 export const config = {
   // Server
   port: parseInt(process.env.PORT || '3000', 10),
@@ -41,5 +53,12 @@ export const config = {
   cache: {
     enabled: process.env.CACHE_ENABLED !== 'false',
     ttl: parseInt(process.env.CACHE_TTL || '300', 10) // 5 minutes default
-  }
+  },
+
+  // Access Control (V1 API)
+  // Allowed origins for public mode (comma-separated in env)
+  allowedOrigins: parseList(process.env.ALLOWED_ORIGINS, DEFAULT_ORIGINS),
+  
+  // API keys for private mode (comma-separated in env)
+  apiKeys: parseList(process.env.API_KEYS, [])
 };

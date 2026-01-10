@@ -98,14 +98,40 @@ export const METADATA_PATTERNS = {
   ],
   creationTime: /"(?:creation|created|publish)_time":(\d{10})/,
   thumbnail: /"(?:previewImage|thumbnailImage|poster_image|preferred_thumbnail)"[^}]*?"uri":"(https:[^"]+)"/,
-  likes: [/"reaction_count":\{"count":(\d+)/, /"i18n_reaction_count":"([^"]+)"/],
+  likes: [
+    /"reaction_count":\{"count":(\d+)/,
+    /"i18n_reaction_count":"([^"]+)"/,
+    /"reactors":\{"count":(\d+)/,
+    /"feedback":\{[^}]*"reaction_count":\{"count":(\d+)/,
+    /"likecount":(\d+)/i,
+    /"like_count":(\d+)/
+  ],
   comments: [
     /"comment_count":\{"total_count":(\d+)/,
     /"comments":\{"total_count":(\d+)/,
-    /"comments_count_summary_renderer"[^}]*"count":\{"count":(\d+)/
+    /"comments_count_summary_renderer"[^}]*"count":\{"count":(\d+)/,
+    /"feedback":\{[^}]*"comment_count":\{"total_count":(\d+)/,
+    /"total_comment_count":(\d+)/,
+    /"commentcount":(\d+)/i
   ],
-  shares: [/"share_count":\{"count":(\d+)/, /"reshares":\{"count":(\d+)/, /"i18n_share_count":"([^"]+)"/],
-  views: [/"video_view_count":(\d+)/, /"play_count":(\d+)/, /"seen_by_count":(\d+)/]
+  shares: [
+    /"share_count":\{"count":(\d+)/,
+    /"reshares":\{"count":(\d+)/,
+    /"i18n_share_count":"([^"]+)"/,
+    /"feedback":\{[^}]*"share_count":\{"count":(\d+)/,
+    /"sharecount":(\d+)/i
+  ],
+  views: [
+    /"video_view_count":(\d+)/,
+    /"play_count":(\d+)/,
+    /"seen_by_count":(\d+)/,
+    /"view_count":(\d+)/,
+    /"viewCount":(\d+)/,
+    /"video_view_count_renderer"[^}]*"count":\{"count":(\d+)/,
+    /"short_form_video_context"[^}]*"play_count":(\d+)/,
+    /"playCount":(\d+)/,
+    /(\d+)\s*(?:views|Views|lượt xem|次观看|回視聴|просмотр)/
+  ]
 };
 
 // ============================================================

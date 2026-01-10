@@ -1,37 +1,9 @@
 /**
- * URL parsing and platform detection utilities
+ * URL parsing utilities
+ * Platform-agnostic - no hardcoded platform patterns here
  */
 
 import { ErrorCode } from './error.utils.js';
-
-/**
- * Platform patterns for detection
- */
-const PLATFORM_PATTERNS = {
-  facebook: [
-    /(?:www\.|m\.|web\.|mobile\.)?facebook\.com/i,
-    /fb\.watch/i,
-    /fb\.me/i
-  ],
-  youtube: [
-    /(?:www\.)?youtube\.com/i,
-    /youtu\.be/i
-  ],
-  instagram: [
-    /(?:www\.)?instagram\.com/i,
-    /instagr\.am/i
-  ],
-  tiktok: [
-    /(?:www\.)?tiktok\.com/i,
-    /vm\.tiktok\.com/i,
-    /vt\.tiktok\.com/i
-  ],
-  twitter: [
-    /(?:www\.)?twitter\.com/i,
-    /(?:www\.)?x\.com/i,
-    /t\.co/i
-  ]
-};
 
 /**
  * Tracking parameters to remove during normalization
@@ -42,32 +14,7 @@ const TRACKING_PARAMS = [
 ];
 
 /**
- * Detect platform from URL
- * @param {string} url - URL to analyze
- * @returns {string|null} Platform name or null if not supported
- */
-export function detectPlatform(url) {
-  try {
-    const urlObj = new URL(url);
-    const hostname = urlObj.hostname.toLowerCase();
-    
-    for (const [platform, patterns] of Object.entries(PLATFORM_PATTERNS)) {
-      if (patterns.some(pattern => pattern.test(hostname))) {
-        return platform;
-      }
-    }
-    
-    return null;
-  } catch (error) {
-    return null;
-  }
-}
-
-/**
  * Normalize URL by removing tracking parameters
- * NOTE: Does NOT convert domain (e.g., m.facebook.com stays as is)
- * User-Agent handles mobile/desktop response
- * 
  * @param {string} url - URL to normalize
  * @returns {string} Normalized URL
  */

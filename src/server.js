@@ -5,11 +5,13 @@
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyCors from '@fastify/cors';
+import fastifyHelmet from '@fastify/helmet';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { config } from './config/index.js';
 import { logger } from './utils/logger.js';
 import routes from './routes/index.js';
+import { securityMiddleware, rateLimitMiddleware } from './middleware/security.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -25,6 +27,31 @@ export function createServer() {
     trustProxy: true
   });
 
+  // Security headers (helmet)
+  fastify.register(fastifyHelmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.tailwindcss.com"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        mediaSrc: ["'self'", "https:", "blob:"],
+        connectSrc: ["'self'", "https:"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"]
+      }
+    },
+    crossOriginEmbedderPolicy: false, // Allow embedding media
+    crossOriginResourcePolicy: { policy: "cross-origin" } // Allow cross-origin resources
+  });
+
+  // Security middleware (path traversal, sanitization)
+  fastify.addHook('preHandler', securityMiddleware);
+  
+  // Rate limiting
+  fastify.addHook('preHandler', rateLimitMiddleware);
+
   // CORS
   fastify.register(fastifyCors, {
     origin: true,
@@ -37,8 +64,8 @@ export function createServer() {
     prefix: '/'
   });
 
-  // API routes
-  fastify.register(routes, { prefix: '/api' });
+  // API routes (v1)
+  fastify.register(routes);
 
   // Health check
   fastify.get('/health', async () => {
