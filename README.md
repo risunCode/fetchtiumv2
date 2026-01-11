@@ -134,12 +134,13 @@ FLASK_DEBUG=false
 ## Deployment
 
 ### Railway (Recommended)
-Full support with FFmpeg for video/audio merge.
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/xxx)
+Full support with FFmpeg for video/audio merge and HLS transcoding.
 
 ### Vercel
-Limited - no FFmpeg support, Python extractors only.
+All extractors work, but no FFmpeg support:
+- ❌ BiliBili video+audio merge
+- ❌ YouTube HLS transcoding
+- ❌ SoundCloud Opus playback
 
 ## Tech Stack
 
