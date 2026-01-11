@@ -11,8 +11,8 @@ import sys
 import os
 import json
 
-# Add api/py to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api', 'py'))
+# Add api to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api'))
 
 from extract import (
     detect_platform,

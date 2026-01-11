@@ -1,5 +1,5 @@
 import sys
-sys.path.insert(0, 'api/py')
+sys.path.insert(0, 'api')
 
 import yt_dlp
 from extract import transform_ytdlp_result

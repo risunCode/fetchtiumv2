@@ -9,8 +9,8 @@ Run: python scripts/test-short-urls.py
 import sys
 import os
 
-# Add api/py to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api', 'py'))
+# Add api to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api'))
 
 from extract import (
     resolve_short_url, 

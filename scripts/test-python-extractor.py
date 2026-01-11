@@ -7,8 +7,8 @@ Run: python scripts/test-python-extractor.py
 import sys
 import os
 
-# Add api/py to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api', 'py'))
+# Add api to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'api'))
 
 from extract import detect_platform, extract_with_ytdlp, extract_with_gallery_dl, NSFW_PLATFORMS
 

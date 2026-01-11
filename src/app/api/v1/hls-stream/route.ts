@@ -103,8 +103,14 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   }
 
+  // Detect stream type using platform header utilities
+  const isHls = url.includes('.m3u8') || url.includes('playlist') || url.includes('/index.m3u8');
+  const isBiliBiliDash = url.includes('.m4s') && isBiliBiliUrl(url);
+  const isYouTube = isYouTubeUrl(url);
+
   // Validate URL is from previous extraction
-  if (!hashParam && !isStoredUrl(url)) {
+  // Skip validation for YouTube/BiliBili - they have their own expiry mechanism
+  if (!hashParam && !isYouTube && !isBiliBiliDash && !isStoredUrl(url)) {
     logger.warn('hls-stream', 'URL not authorized', { url: url.substring(0, 100) });
     return new Response(JSON.stringify({ 
       error: { code: 'UNAUTHORIZED_URL', message: 'URL not authorized' } 
@@ -113,11 +119,6 @@ export async function GET(request: NextRequest): Promise<Response> {
       headers: { 'Content-Type': 'application/json' },
     });
   }
-
-  // Detect stream type using platform header utilities
-  const isHls = url.includes('.m3u8') || url.includes('playlist') || url.includes('/index.m3u8');
-  const isBiliBiliDash = url.includes('.m4s') && isBiliBiliUrl(url);
-  const isYouTube = isYouTubeUrl(url);
   
   // For BiliBili video, check if we have separate audio URL for merging
   const hasSeparateAudio = isBiliBiliDash && audioUrlParam && outputType === 'video';

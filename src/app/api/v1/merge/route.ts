@@ -123,8 +123,15 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   }
 
+  // Check if URLs are from known platforms with their own expiry
+  const isYouTubeVideo = videoUrl.includes('googlevideo.com') || videoUrl.includes('youtube.com');
+  const isBiliBiliVideo = videoUrl.includes('bilivideo.') || videoUrl.includes('bilibili.') || videoUrl.includes('akamaized.net');
+  const isYouTubeAudio = audioUrl.includes('googlevideo.com') || audioUrl.includes('youtube.com');
+  const isBiliBiliAudio = audioUrl.includes('bilivideo.') || audioUrl.includes('bilibili.') || audioUrl.includes('akamaized.net');
+
   // Validate URLs are from previous extraction (security check)
-  if (!videoResolved.fromHash && !isStoredUrl(videoUrl)) {
+  // Skip validation for YouTube/BiliBili - they have their own expiry mechanism
+  if (!videoResolved.fromHash && !isYouTubeVideo && !isBiliBiliVideo && !isStoredUrl(videoUrl)) {
     logger.warn('merge', 'Video URL not authorized', { url: videoUrl.substring(0, 50) });
     return new Response(JSON.stringify({ 
       error: { 
@@ -137,7 +144,7 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   }
 
-  if (!audioResolved.fromHash && !isStoredUrl(audioUrl)) {
+  if (!audioResolved.fromHash && !isYouTubeAudio && !isBiliBiliAudio && !isStoredUrl(audioUrl)) {
     logger.warn('merge', 'Audio URL not authorized', { url: audioUrl.substring(0, 50) });
     return new Response(JSON.stringify({ 
       error: { 

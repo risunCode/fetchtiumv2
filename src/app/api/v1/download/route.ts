@@ -172,8 +172,13 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   }
 
+  // Check if URL is from known platforms with their own expiry
+  const isYouTubeUrl = url.includes('googlevideo.com') || url.includes('youtube.com');
+  const isBiliBiliUrl = url.includes('bilivideo.') || url.includes('bilibili.') || url.includes('akamaized.net');
+
   // Validate URL is from previous extraction (prevent open proxy) - skip if from hash
-  if (!hashParam && !isStoredUrl(url)) {
+  // Skip validation for YouTube/BiliBili - they have their own expiry mechanism
+  if (!hashParam && !isYouTubeUrl && !isBiliBiliUrl && !isStoredUrl(url)) {
     logger.warn('download', 'URL not in store', { url: url.substring(0, 50) });
     return new Response(JSON.stringify({ 
       error: { 
