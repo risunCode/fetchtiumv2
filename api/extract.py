@@ -329,6 +329,133 @@ def sanitize_cookie(cookie: str) -> str | None:
     return sanitized if sanitized else None
 
 
+def convert_cookie_to_netscape(cookie: str, domain: str = None) -> str:
+    """
+    Convert cookie string to Netscape format for yt-dlp.
+    
+    Supports:
+    - JSON array format (from browser extensions like EditThisCookie)
+    - Netscape format (already valid, return as-is)
+    - Raw cookie header format (name=value; name2=value2) - requires domain param
+    
+    Args:
+        cookie: Cookie string in any supported format
+        domain: Domain for cookie header format (e.g., '.youtube.com')
+        
+    Returns:
+        Cookie string in Netscape format
+    """
+    import json
+    
+    cookie = cookie.strip()
+    
+    # Check if already Netscape format (starts with comment or has tab-separated values)
+    if cookie.startswith('# Netscape') or cookie.startswith('# HTTP Cookie'):
+        return cookie  # Already Netscape format
+    
+    # Check for tab-separated format (Netscape without header)
+    if '\t' in cookie:
+        lines = cookie.split('\n')
+        valid_lines = 0
+        for line in lines:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                parts = line.split('\t')
+                if len(parts) >= 7:
+                    valid_lines += 1
+        if valid_lines > 0:
+            # Add Netscape header if missing
+            return '# Netscape HTTP Cookie File\n# https://curl.haxx.se/rfc/cookie_spec.html\n\n' + cookie
+    
+    # Try JSON format
+    if cookie.startswith('[') or cookie.startswith('{'):
+        try:
+            data = json.loads(cookie)
+            
+            # Handle array of cookies
+            if isinstance(data, list):
+                lines = ['# Netscape HTTP Cookie File', '# https://curl.haxx.se/rfc/cookie_spec.html', '']
+                for c in data:
+                    if isinstance(c, dict) and 'name' in c and 'value' in c:
+                        c_domain = c.get('domain', domain or '')
+                        # Ensure domain starts with dot for wildcard
+                        if c_domain and not c_domain.startswith('.'):
+                            c_domain = '.' + c_domain
+                        
+                        host_only = 'FALSE' if c_domain.startswith('.') else 'TRUE'
+                        path = c.get('path', '/')
+                        secure = 'TRUE' if c.get('secure', False) else 'FALSE'
+                        
+                        # Handle expiration
+                        expiry = c.get('expirationDate') or c.get('expiry') or c.get('expires', 0)
+                        if isinstance(expiry, float):
+                            expiry = int(expiry)
+                        
+                        name = c.get('name', '')
+                        value = c.get('value', '')
+                        
+                        # Format: domain, host_only, path, secure, expiry, name, value
+                        line = f"{c_domain}\t{host_only}\t{path}\t{secure}\t{expiry}\t{name}\t{value}"
+                        lines.append(line)
+                
+                return '\n'.join(lines)
+            
+            # Handle single cookie object
+            elif isinstance(data, dict) and 'name' in data and 'value' in data:
+                c_domain = data.get('domain', domain or '')
+                if c_domain and not c_domain.startswith('.'):
+                    c_domain = '.' + c_domain
+                
+                host_only = 'FALSE' if c_domain.startswith('.') else 'TRUE'
+                path = data.get('path', '/')
+                secure = 'TRUE' if data.get('secure', False) else 'FALSE'
+                expiry = data.get('expirationDate') or data.get('expiry') or data.get('expires', 0)
+                if isinstance(expiry, float):
+                    expiry = int(expiry)
+                
+                lines = [
+                    '# Netscape HTTP Cookie File',
+                    '# https://curl.haxx.se/rfc/cookie_spec.html',
+                    '',
+                    f"{c_domain}\t{host_only}\t{path}\t{secure}\t{expiry}\t{data['name']}\t{data['value']}"
+                ]
+                return '\n'.join(lines)
+                
+        except json.JSONDecodeError:
+            pass  # Not valid JSON, try other formats
+    
+    # Try raw cookie header format (name=value; name2=value2)
+    # This format requires domain to be provided
+    if '=' in cookie and ';' in cookie and domain:
+        lines = ['# Netscape HTTP Cookie File', '# https://curl.haxx.se/rfc/cookie_spec.html', '']
+        
+        # Ensure domain starts with dot for wildcard matching
+        if not domain.startswith('.'):
+            domain = '.' + domain
+        
+        # Parse cookie header format
+        pairs = cookie.split(';')
+        for pair in pairs:
+            pair = pair.strip()
+            if '=' in pair:
+                # Split only on first = (value may contain =)
+                idx = pair.index('=')
+                name = pair[:idx].strip()
+                value = pair[idx+1:].strip()
+                
+                if name and value:
+                    # Netscape format: domain starts with . means host_only=FALSE
+                    # domain, host_only, path, secure, expiry, name, value
+                    line = f"{domain}\tTRUE\t/\tTRUE\t0\t{name}\t{value}"
+                    lines.append(line)
+        
+        if len(lines) > 3:  # Has at least one cookie
+            return '\n'.join(lines)
+    
+    # Return original if no conversion possible
+    return cookie
+
+
 def sanitize_output(value: any) -> any:
     """Sanitize output values to prevent XSS"""
     if isinstance(value, str):
@@ -705,6 +832,9 @@ def extract_with_ytdlp(url: str, cookie: str = None) -> dict:
         # Security: disable dangerous features
         'no_check_certificate': False,
         'geo_bypass': False,
+        # Ensure all formats are extracted (including HLS)
+        'listformats': False,
+        'youtube_include_hls_manifest': True,
     }
     
     def get_transformer(platform: str):
@@ -725,11 +855,23 @@ def extract_with_ytdlp(url: str, cookie: str = None) -> dict:
     if cookie:
         import tempfile
         import os
+        
+        # Extract domain from URL for cookie header format conversion
+        cookie_domain = None
+        try:
+            parsed_url = urlparse(url)
+            cookie_domain = parsed_url.hostname
+        except:
+            pass
+        
+        # Convert cookie to Netscape format (yt-dlp requirement)
+        netscape_cookie = convert_cookie_to_netscape(cookie, domain=cookie_domain)
+        
         # Create temp file securely
         fd, cookie_path = tempfile.mkstemp(suffix='.txt', prefix='ytdlp_cookie_')
         try:
             with os.fdopen(fd, 'w') as f:
-                f.write(cookie)
+                f.write(netscape_cookie)
             ydl_opts['cookiefile'] = cookie_path
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
