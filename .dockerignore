@@ -51,12 +51,11 @@ yarn-error.log*
 # TypeScript build info
 *.tsbuildinfo
 
-# Documentation (not needed in production)
+# Documentation (not needed in production, except CHANGELOG)
 README.md
-CHANGELOG.md
 LICENSE
-*.md
-!requirements.txt
+docs/*.md
+!CHANGELOG.md
 
 # Vercel (not needed for Railway)
 .vercel
