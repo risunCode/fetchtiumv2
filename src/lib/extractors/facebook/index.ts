@@ -263,8 +263,17 @@ export class FacebookExtractor extends BaseExtractor {
                             html.includes('viewer_image') || 
                             html.includes('photo_image');
     
-    if (!hasMediaPatterns && html.length < 500000 && 
-        (html.includes('login_form') || html.includes('Log in to Facebook'))) {
+    // Check for login page - but only if we're sure it's a login redirect
+    // Some public posts may have login_form in sidebar but still have media
+    const hasLoginPage = html.includes('login_form') || html.includes('Log in to Facebook');
+    
+    if (!hasMediaPatterns && html.length < 500000 && hasLoginPage) {
+      logger.warn('facebook', 'Login page detected', { 
+        hasMediaPatterns, 
+        htmlLength: html.length,
+        hasLoginForm: html.includes('login_form'),
+        cookieSource 
+      });
       return buildErrorResult(ErrorCode.LOGIN_REQUIRED, 'This content requires login');
     }
 

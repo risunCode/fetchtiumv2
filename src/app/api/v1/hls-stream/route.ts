@@ -303,17 +303,23 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
 
     ffmpeg.stderr.on('data', (data: Buffer) => {
-      stderrOutput += data.toString();
+      const chunk = data.toString();
+      stderrOutput += chunk;
+      // Log FFmpeg progress/errors in real-time
+      if (chunk.includes('error') || chunk.includes('Error') || chunk.includes('failed')) {
+        logger.warn('hls-stream', 'FFmpeg stderr', { output: chunk.substring(0, 300) });
+      }
     });
 
     ffmpeg.on('error', (err) => {
-      logger.error('hls-stream', 'FFmpeg error', { error: err.message });
+      logger.error('hls-stream', 'FFmpeg spawn error', { error: err.message });
       writer.abort(new Error('FFmpeg not available')).catch(() => {});
     });
 
     ffmpeg.on('close', (code) => {
+      logger.info('hls-stream', 'FFmpeg closed', { code, hasData, stderrLength: stderrOutput.length });
       if (code !== 0 && !hasData) {
-        logger.error('hls-stream', 'FFmpeg failed', { code, stderr: stderrOutput.substring(0, 500) });
+        logger.error('hls-stream', 'FFmpeg failed', { code, stderr: stderrOutput.substring(0, 1000) });
         writer.abort(new Error(`FFmpeg failed with code ${code}`)).catch(() => {});
       }
     });

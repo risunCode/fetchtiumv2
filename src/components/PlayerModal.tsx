@@ -65,9 +65,9 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, onCl
   // Check if we need merge endpoint for video+audio playback
   const useMergeEndpoint = type === 'video' && needsMergeForPlayback(url, audioUrl);
   
-  // For HLS Opus (SoundCloud), use hls-stream endpoint to convert to MP3
-  // YouTube HLS can be played directly via HLS.js (has audio included)
-  const needsHlsStream = !useMergeEndpoint && isHlsUrl && isOpus;
+  // For HLS Opus or YouTube HLS (without merge), use hls-stream endpoint
+  // YouTube HLS cannot be played directly due to CORS restrictions
+  const needsHlsStream = !useMergeEndpoint && ((isHlsUrl && isOpus) || isYouTubeHls);
   
   // Build stream URL
   const streamUrl = url 
@@ -75,15 +75,12 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, onCl
       ? buildMergeUrl({ videoUrl: url, audioUrl })
       : needsHlsStream
         ? `/api/v1/hls-stream?url=${encodeURIComponent(url)}&type=${type}`
-        : isYouTubeHls
-          ? url // Use original HLS URL directly for YouTube (HLS.js will handle it)
-          : `/api/v1/stream?url=${encodeURIComponent(url)}`
+        : `/api/v1/stream?url=${encodeURIComponent(url)}`
     : '';
 
   // Check if URL is HLS that can be played directly via HLS.js
-  // YouTube HLS and other HLS formats (not Opus)
-  const isHls = !isOpus && (
-    isYouTubeHls ||
+  // (not Opus, not YouTube due to CORS, and is HLS format)
+  const isHls = !isOpus && !isYouTube && (
     mime?.includes('mpegurl') || 
     mime?.includes('m3u8') || 
     url?.includes('.m3u8') || 
