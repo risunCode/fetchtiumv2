@@ -81,7 +81,8 @@ HTTP_CLIENT = httpx.Client(
 )
 
 # Default target resolutions for video format selection
-DEFAULT_TARGET_HEIGHTS = [1080, 720, 480, 360]
+# None = return all available resolutions (no filtering)
+DEFAULT_TARGET_HEIGHTS = None
 
 # Codec priority for video format selection (lower = better)
 DEFAULT_CODEC_PRIORITY = {'H.264': 0, 'VP9': 1, 'AV1': 2}
@@ -145,13 +146,7 @@ PLATFORM_CONFIG = {
         'short_url_pattern': None,
         'custom_headers': None,
     },
-    'pixiv': {
-        'extractor': 'gallery-dl',
-        'patterns': [r'pixiv\.net'],
-        'nsfw': True,
-        'short_url_pattern': None,
-        'custom_headers': None,
-    },
+    # Pixiv moved to native TypeScript extractor (src/lib/extractors/pixiv)
     'eporner': {
         'extractor': 'yt-dlp',
         'patterns': [r'eporner\.com'],
@@ -924,7 +919,7 @@ def process_video_formats(
     Process video formats and return (video_sources, audio_sources).
     
     This function provides unified format processing for all video platforms:
-    - Deduplicates by resolution (max one per target height)
+    - Deduplicates by resolution (one format per unique height)
     - Separates video-only and audio-only formats
     - Marks needsMerge for video-only formats
     - Applies codec priority for selection
@@ -932,7 +927,7 @@ def process_video_formats(
     Args:
         formats: List of format dicts from yt-dlp
         info: Optional info dict for filename generation
-        target_heights: Target resolutions to keep (default: [1080, 720, 480, 360])
+        target_heights: Target resolutions to keep (None = all resolutions)
         codec_priority: Codec preference dict (lower = better, default: H.264 > VP9 > AV1)
         height_tolerance: Tolerance for matching heights (default: 10%)
         
@@ -1019,32 +1014,52 @@ def process_video_formats(
             by_height[height] = []
         by_height[height].append(source)
     
-    # Select best format per target resolution
-    for target_h in target_heights:
-        # Find closest height within tolerance
-        best_match_height = None
-        for h in by_height.keys():
-            if abs(h - target_h) <= target_h * height_tolerance:
-                if best_match_height is None or abs(h - target_h) < abs(best_match_height - target_h):
-                    best_match_height = h
-        
-        if best_match_height and by_height[best_match_height]:
-            candidates = by_height[best_match_height]
+    # Select best format per resolution
+    # If target_heights is None, return all unique heights
+    if target_heights is None:
+        # Return all unique heights (best format per height)
+        for height in sorted(by_height.keys(), reverse=True):
+            if by_height[height]:
+                candidates = by_height[height]
+                
+                # Sort by: hasAudio (prefer with audio), then codec priority
+                candidates.sort(key=lambda x: (
+                    x.get('_has_audio_score', 1),
+                    x.get('_codec_priority', 99)
+                ))
+                
+                best = candidates[0]
+                
+                # Clean up internal fields
+                clean_source = {k: v for k, v in best.items() if not k.startswith('_')}
+                video_sources.append(clean_source)
+    else:
+        # Filter to target heights only
+        for target_h in target_heights:
+            # Find closest height within tolerance
+            best_match_height = None
+            for h in by_height.keys():
+                if abs(h - target_h) <= target_h * height_tolerance:
+                    if best_match_height is None or abs(h - target_h) < abs(best_match_height - target_h):
+                        best_match_height = h
             
-            # Sort by: hasAudio (prefer with audio), then codec priority
-            candidates.sort(key=lambda x: (
-                x.get('_has_audio_score', 1),
-                x.get('_codec_priority', 99)
-            ))
-            
-            best = candidates[0]
-            
-            # Clean up internal fields
-            clean_source = {k: v for k, v in best.items() if not k.startswith('_')}
-            video_sources.append(clean_source)
-            
-            # Remove used height to avoid duplicates
-            del by_height[best_match_height]
+            if best_match_height and by_height[best_match_height]:
+                candidates = by_height[best_match_height]
+                
+                # Sort by: hasAudio (prefer with audio), then codec priority
+                candidates.sort(key=lambda x: (
+                    x.get('_has_audio_score', 1),
+                    x.get('_codec_priority', 99)
+                ))
+                
+                best = candidates[0]
+                
+                # Clean up internal fields
+                clean_source = {k: v for k, v in best.items() if not k.startswith('_')}
+                video_sources.append(clean_source)
+                
+                # Remove used height to avoid duplicates
+                del by_height[best_match_height]
     
     # Process audio formats
     audio_sources = []
@@ -1311,16 +1326,21 @@ def process_youtube_formats(
         if height in seen_heights:
             continue
         
-        # Only add if height is in target heights (with tolerance)
-        height_match = False
-        for target_h in target_heights:
-            if abs(height - target_h) <= target_h * 0.1:
-                height_match = True
-                break
-        
-        if height_match or height <= max_progressive_height:
+        # If target_heights is None, accept all heights
+        # Otherwise, only add if height is in target heights (with tolerance)
+        if target_heights is None:
             video_sources.append(build_source(fmt, has_audio=True))
             seen_heights.add(height)
+        else:
+            height_match = False
+            for target_h in target_heights:
+                if abs(height - target_h) <= target_h * 0.1:
+                    height_match = True
+                    break
+            
+            if height_match or height <= max_progressive_height:
+                video_sources.append(build_source(fmt, has_audio=True))
+                seen_heights.add(height)
     
     # Step 2: Add DASH formats for higher resolutions or missing heights
     dash_video_formats.sort(key=lambda x: (
@@ -1335,12 +1355,17 @@ def process_youtube_formats(
         if height in seen_heights:
             continue
         
-        # Only add if height is in target heights (with tolerance)
-        for target_h in target_heights:
-            if abs(height - target_h) <= target_h * 0.1:
-                video_sources.append(build_source(fmt, has_audio=False))
-                seen_heights.add(height)
-                break
+        # If target_heights is None, accept all heights
+        # Otherwise, only add if height is in target heights (with tolerance)
+        if target_heights is None:
+            video_sources.append(build_source(fmt, has_audio=False))
+            seen_heights.add(height)
+        else:
+            for target_h in target_heights:
+                if abs(height - target_h) <= target_h * 0.1:
+                    video_sources.append(build_source(fmt, has_audio=False))
+                    seen_heights.add(height)
+                    break
     
     # Process audio formats for DASH merge
     audio_sources_raw = []
@@ -1391,43 +1416,51 @@ def process_youtube_formats(
             if height in hls_seen_heights:
                 continue
             
-            # Only add if height is in target heights (with tolerance)
-            for target_h in target_heights:
-                if abs(height - target_h) <= target_h * 0.1:
-                    vcodec = fmt.get('vcodec', 'none')
-                    acodec = fmt.get('acodec', 'none')
-                    codec_name = normalize_codec_name(vcodec)
-                    
-                    quality = fmt.get('format_note') or (f"{height}p" if height else fmt.get('format_id', 'default'))
-                    fps = fmt.get('fps')
-                    if fps and fps > 30:
-                        quality = f"{quality} {fps}fps"
-                    
-                    filesize = fmt.get('filesize') or fmt.get('filesize_approx')
-                    has_audio = acodec != 'none'
-                    
-                    hls_source = {
-                        'quality': quality,
-                        'url': fmt.get('url'),
-                        'resolution': f"{width}x{height}" if width and height else None,
-                        'mime': 'video/mp4',  # Output will be MP4 after proxy processing
-                        'extension': 'mp4',
-                        'filename': generate_filename(info, fmt, 'video') if info else f"video_{quality}.mp4",
-                        'format': 'hls',
-                        'hasAudio': has_audio,
-                        'needsMerge': False,  # HLS already has audio
-                        'needsProxy': True,   # Cannot play directly due to CORS
-                        'codec': codec_name if codec_name else None,
-                    }
-                    
-                    if filesize:
-                        hls_source['size'] = int(filesize)
-                    
-                    # Remove None values
-                    hls_source = {k: v for k, v in hls_source.items() if v is not None}
-                    hls_sources.append(hls_source)
-                    hls_seen_heights.add(height)
-                    break
+            # If target_heights is None, accept all heights
+            # Otherwise, only add if height is in target heights (with tolerance)
+            should_add = False
+            if target_heights is None:
+                should_add = True
+            else:
+                for target_h in target_heights:
+                    if abs(height - target_h) <= target_h * 0.1:
+                        should_add = True
+                        break
+            
+            if should_add:
+                vcodec = fmt.get('vcodec', 'none')
+                acodec = fmt.get('acodec', 'none')
+                codec_name = normalize_codec_name(vcodec)
+                
+                quality = fmt.get('format_note') or (f"{height}p" if height else fmt.get('format_id', 'default'))
+                fps = fmt.get('fps')
+                if fps and fps > 30:
+                    quality = f"{quality} {fps}fps"
+                
+                filesize = fmt.get('filesize') or fmt.get('filesize_approx')
+                has_audio = acodec != 'none'
+                
+                hls_source = {
+                    'quality': quality,
+                    'url': fmt.get('url'),
+                    'resolution': f"{width}x{height}" if width and height else None,
+                    'mime': 'video/mp4',  # Output will be MP4 after proxy processing
+                    'extension': 'mp4',
+                    'filename': generate_filename(info, fmt, 'video') if info else f"video_{quality}.mp4",
+                    'format': 'hls',
+                    'hasAudio': has_audio,
+                    'needsMerge': False,  # HLS already has audio
+                    'needsProxy': True,   # Cannot play directly due to CORS
+                    'codec': codec_name if codec_name else None,
+                }
+                
+                if filesize:
+                    hls_source['size'] = int(filesize)
+                
+                # Remove None values
+                hls_source = {k: v for k, v in hls_source.items() if v is not None}
+                hls_sources.append(hls_source)
+                hls_seen_heights.add(height)
     
     return video_sources, audio_sources, hls_sources
 

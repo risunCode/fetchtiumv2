@@ -4,6 +4,64 @@ All notable changes to FetchtiumV2.
 
 ---
 
+## [1.5.1] - 2026-01-12 — Pixiv Native Support + Hotfixes
+
+### 🚀 What's New
+
+- **Pixiv Native Extractor** - Direct API integration without gallery-dl dependency
+  - Single and multi-page artwork support
+  - Original quality images with file sizes
+  - Automatic Referer header handling via proxy
+
+- **All Resolutions Support** - No more 360p/480p/720p/1080p limit
+  - Returns ALL available video qualities (144p to 4K+)
+  - Deduplication by exact height (one format per resolution)
+
+- **Changelog Page** - New `/changelog` page that reads directly from CHANGELOG.md
+  - Auto-updates when changelog is modified
+  - Styled markdown rendering
+
+- **Format Badge** - Shows original format with codec in FormatList
+  - Combined format: `[HLS-H.264]`, `[MP4-VP9]`, `[DASH-AV1]`, `[Opus]`
+  - Mime type shown below for output format
+
+### 🔧 Technical Changes
+
+- **src/lib/extractors/pixiv/** - New native TypeScript extractor using Pixiv's `/ajax/illust/{id}` API
+- **Removed HTTP/2 from TypeScript** - Simplified to undici only (Python keeps httpx HTTP/2)
+- **Proxy support for Pixiv** - Stream/download/thumbnail routes add `Referer: https://www.pixiv.net/`
+- **needsProxy flag** - Pixiv sources marked for automatic proxy routing
+
+### 🐛 Fixes
+
+- **PlayerModal audio leak** - Fixed audio continuing after modal close (proper cleanup with `load()`)
+- **Merge loading message** - Changed to "Merging video and audio for playback... please wait"
+- **FormatList Open button** - Now uses proxy for `needsProxy` sources (Pixiv images)
+- **ResultCard thumbnails** - Added Pixiv to proxy thumbnail platforms
+
+### 📦 Files Changed
+
+```
++ src/lib/extractors/pixiv/index.ts    # New Pixiv native extractor
++ src/app/changelog/page.tsx           # Changelog page
++ src/app/api/changelog/route.ts       # Changelog API endpoint
+- src/lib/core/network/http2-client.ts # Removed (Python has own httpx)
+~ src/lib/core/network/client.ts       # Simplified to undici only
+~ src/lib/extractors/index.ts          # Register PixivExtractor
+~ src/lib/extractors/python-platforms.ts # Remove Pixiv from Python
+~ src/app/api/v1/stream/route.ts       # Add Pixiv Referer
+~ src/app/api/v1/download/route.ts     # Add Pixiv Referer
+~ src/app/api/v1/thumbnail/route.ts    # Add pximg.net + Referer
+~ src/components/PlayerModal.tsx       # Fix audio cleanup
+~ src/components/FormatList.tsx        # Format badge + proxy for needsProxy
+~ src/components/ResultCard.tsx        # Pixiv thumbnail proxy
+~ src/app/page.tsx                     # Add changelog link in header
+~ src/middleware.ts                    # Add /api/changelog to public routes
+~ api/extract.py                       # Remove Pixiv, all resolutions support
+```
+
+---
+
 ## [1.5.0] - 2026-01-11 — HTTP/2 Support + Rule34Video + Stream Improvements
 
 ### 🚀 What's New

@@ -19,7 +19,7 @@ function formatNumber(n: number): string {
 /**
  * Platforms that need thumbnail proxy (hotlink protection or CORS)
  */
-const PROXY_THUMBNAIL_PLATFORMS = ['instagram', 'bilibili', 'youtube'];
+const PROXY_THUMBNAIL_PLATFORMS = ['instagram', 'bilibili', 'youtube', 'pixiv'];
 
 /**
  * Get thumbnail URL - use stream proxy for platforms with hotlink protection

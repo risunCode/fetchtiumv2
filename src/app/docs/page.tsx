@@ -319,7 +319,7 @@ curl -X POST ${BASE_URL}/api/v1/extract \\
                 <span className="text-zinc-600 text-xs">TypeScript</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {['Facebook', 'Instagram', 'TikTok', 'Twitter/X'].map(p => (
+                {['Facebook', 'Instagram', 'TikTok', 'Twitter/X', 'Pixiv'].map(p => (
                   <span key={p} className="px-3 py-1.5 bg-zinc-800 rounded-lg text-sm">{p}</span>
                 ))}
               </div>
@@ -332,7 +332,7 @@ curl -X POST ${BASE_URL}/api/v1/extract \\
                 <span className="text-zinc-600 text-xs">yt-dlp / gallery-dl</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {['YouTube', 'BiliBili', 'SoundCloud', 'Twitch', 'Bandcamp', 'Reddit', 'Pinterest', 'Weibo', 'Pixiv', 'Eporner', 'Rule34'].map(p => (
+                {['YouTube', 'BiliBili', 'SoundCloud', 'Twitch', 'Bandcamp', 'Reddit', 'Pinterest', 'Weibo', 'Eporner', 'Rule34'].map(p => (
                   <span key={p} className="px-3 py-1.5 bg-zinc-800 rounded-lg text-sm">{p}</span>
                 ))}
               </div>

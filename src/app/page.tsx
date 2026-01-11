@@ -78,6 +78,15 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-2">
             <a
+              href="/changelog"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-400 hover:text-white text-sm transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+              Changelog
+            </a>
+            <a
               href="/docs"
               className="flex items-center gap-1.5 px-3 py-1.5 text-zinc-400 hover:text-white text-sm transition-colors"
             >
@@ -194,20 +203,20 @@ export default function Home() {
               <h3 className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-4">Supported Platforms</h3>
               <div className="space-y-3">
                 <div>
-                  <p className="text-zinc-600 text-xs mb-2">Native (4)</p>
+                  <p className="text-zinc-600 text-xs mb-2">Native (5)</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {['Facebook', 'Instagram', 'TikTok', 'Twitter'].map(p => (
+                    {['Facebook', 'Instagram', 'TikTok', 'Twitter', 'Pixiv'].map(p => (
                       <span key={p} className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-md text-emerald-400 text-xs">{p}</span>
                     ))}
                   </div>
                 </div>
                 <div>
-                  <p className="text-zinc-600 text-xs mb-2">Python Wrapper (12)</p>
+                  <p className="text-zinc-600 text-xs mb-2">Python Wrapper (10)</p>
                   <div className="flex flex-wrap gap-1.5">
                     {['YouTube', 'BiliBili', 'SoundCloud', 'Twitch', 'Bandcamp', 'Reddit', 'Pinterest', 'Weibo'].map(p => (
                       <span key={p} className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-md text-blue-400 text-xs">{p}</span>
                     ))}
-                    {['Pixiv', 'Eporner', 'Rule34'].map(p => (
+                    {['Eporner', 'Rule34'].map(p => (
                       <span key={p} className="px-2 py-1 bg-red-500/10 border border-red-500/20 rounded-md text-red-400 text-xs" title="NSFW">{p}</span>
                     ))}
                   </div>

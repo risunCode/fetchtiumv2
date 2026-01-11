@@ -28,6 +28,10 @@ const ALLOWED_DOMAINS = [
   // Weibo
   'sinaimg.cn',
   'weibocdn.com',
+  // Pixiv
+  'pximg.net',
+  'i.pximg.net',
+  's.pximg.net',
 ];
 
 /**
@@ -90,8 +94,21 @@ export async function GET(request: NextRequest): Promise<Response> {
   try {
     logger.debug('thumbnail', 'Proxying thumbnail', { url: url.substring(0, 50) });
 
+    // Build request headers with platform-specific Referer
+    const requestHeaders: Record<string, string> = {};
+    
+    // Pixiv requires Referer
+    if (url.includes('pximg.net')) {
+      requestHeaders['Referer'] = 'https://www.pixiv.net/';
+    }
+    // Weibo requires Referer
+    else if (url.includes('sinaimg.cn') || url.includes('weibocdn.com')) {
+      requestHeaders['Referer'] = 'https://weibo.com/';
+    }
+
     // Fetch the thumbnail
     const result = await fetchStream(url, {
+      headers: requestHeaders,
       timeout: 10000,
     });
 

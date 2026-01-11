@@ -39,24 +39,113 @@ function isBiliBiliDash(source: MediaSource): boolean {
 
 /**
  * Check if source needs HLS stream endpoint (FFmpeg transcoding)
- * Includes: SoundCloud HLS Opus, BiliBili DASH, YouTube HLS (needsProxy)
+ * Includes: SoundCloud HLS Opus, BiliBili DASH, YouTube HLS (needsProxy for video/audio)
+ * Note: Images with needsProxy should use regular download endpoint, not HLS
  */
 function needsHlsStream(source: MediaSource): boolean {
-  // YouTube HLS with needsProxy flag
-  if (source.needsProxy) return true;
+  // YouTube HLS with needsProxy flag (but not images - they use regular proxy)
+  if (source.needsProxy) {
+    // Check if it's HLS/DASH (video/audio) vs regular file (image)
+    const isHls = source.url?.includes('.m3u8') || source.url?.includes('playlist') || source.mime?.includes('mpegurl');
+    const isDash = source.url?.includes('.m4s');
+    return isHls || isDash;
+  }
   
   return isHlsOpus(source) || isBiliBiliDash(source);
 }
 
 /**
- * Check if source is experimental (HLS, Opus, DASH segments, or needs proxy)
+ * Check if source is experimental (HLS, Opus, DASH segments, needs proxy, or needs merge)
  */
 function isExperimental(source: MediaSource): boolean {
   if (source.needsProxy) return true;
+  if (source.needsMerge) return true;
   const isOpus = source.mime?.includes('opus') || source.url?.includes('.opus');
   const isHls = source.url?.includes('.m3u8') || source.url?.includes('playlist') || source.mime?.includes('mpegurl');
   const isDash = source.url?.includes('.m4s');
   return isOpus || isHls || isDash;
+}
+
+/**
+ * Get format badge with codec info
+ * Format: [HLS-H.264], [DASH-VP9], [Opus], [MP4-AV1], etc
+ */
+function getFormatBadge(source: MediaSource): string | null {
+  const url = source.url?.toLowerCase() || '';
+  const mime = source.mime?.toLowerCase() || '';
+  const ext = source.extension?.toLowerCase() || '';
+  const codec = source.codec || '';
+  
+  // HLS formats - append codec if available
+  if (url.includes('.m3u8') || mime.includes('mpegurl')) {
+    return codec ? `HLS-${codec}` : 'HLS';
+  }
+  
+  // DASH segments (BiliBili, etc) - append codec if available
+  if (url.includes('.m4s')) {
+    return codec ? `DASH-${codec}` : 'DASH';
+  }
+  
+  // Audio codecs/containers
+  if (mime.includes('opus') || url.includes('.opus') || ext === 'opus') {
+    return 'Opus';
+  }
+  if (ext === 'm4a' || (mime.includes('audio') && url.includes('.m4a'))) {
+    return 'M4A';
+  }
+  if (mime.includes('aac') || ext === 'aac') {
+    return 'AAC';
+  }
+  if (mime.includes('mpeg') || ext === 'mp3' || url.includes('.mp3')) {
+    return 'MP3';
+  }
+  if (mime.includes('ogg') || ext === 'ogg') {
+    return 'OGG';
+  }
+  if (mime.includes('flac') || ext === 'flac') {
+    return 'FLAC';
+  }
+  if (mime.includes('wav') || ext === 'wav') {
+    return 'WAV';
+  }
+  
+  // Video containers - append codec if available
+  if (ext === 'webm' || mime.includes('webm')) {
+    return codec ? `WebM-${codec}` : 'WebM';
+  }
+  if (ext === 'mkv' || mime.includes('matroska')) {
+    return codec ? `MKV-${codec}` : 'MKV';
+  }
+  if (ext === 'flv' || mime.includes('flv')) {
+    return 'FLV';
+  }
+  if (ext === 'mov' || mime.includes('quicktime')) {
+    return codec ? `MOV-${codec}` : 'MOV';
+  }
+  if (ext === 'avi' || mime.includes('avi')) {
+    return 'AVI';
+  }
+  
+  // MP4 - append codec if available
+  if (ext === 'mp4' || (mime.includes('video/mp4') && !url.includes('.m3u8'))) {
+    return codec ? `MP4-${codec}` : 'MP4';
+  }
+  
+  // Image formats
+  if (ext === 'webp' || mime.includes('webp')) {
+    return 'WebP';
+  }
+  if (ext === 'png' || mime.includes('png')) {
+    return 'PNG';
+  }
+  if (ext === 'gif' || mime.includes('gif')) {
+    return 'GIF';
+  }
+  if (ext === 'jpg' || ext === 'jpeg' || mime.includes('jpeg')) {
+    return 'JPG';
+  }
+  
+  return null;
 }
 
 /**
@@ -184,10 +273,14 @@ function FormatRow({ item, source, result, onPlay }: FormatRowProps) {
   }, [item.type, source, result.items]);
 
   const handleOpen = useCallback(() => {
-    // Open direct URL - most platforms work without proxy
-    // Rule34Video/Eporner URLs work directly in browser
-    window.open(source.url, '_blank');
-  }, [source.url]);
+    // For sources that need proxy (Pixiv images, etc), use stream endpoint
+    if (source.needsProxy) {
+      window.open(buildStreamUrl(source), '_blank');
+    } else {
+      // Open direct URL - most platforms work without proxy
+      window.open(source.url, '_blank');
+    }
+  }, [source]);
 
   const handlePlay = useCallback(() => {
     if (item.type === 'video' || item.type === 'audio') {
@@ -218,6 +311,11 @@ function FormatRow({ item, source, result, onPlay }: FormatRowProps) {
           <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-zinc-700 text-xs font-bold uppercase">
             {source.quality}
           </span>
+          {getFormatBadge(source) && (
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-sky-600/30 text-sky-400 text-[10px] font-medium uppercase">
+              {getFormatBadge(source)}
+            </span>
+          )}
           {source.resolution && (
             <span className="text-zinc-400 text-xs">{source.resolution}</span>
           )}

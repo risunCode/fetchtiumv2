@@ -47,12 +47,7 @@ export const PYTHON_PLATFORMS: PythonPlatform[] = [
     patterns: [/reddit\.com/i, /redd\.it/i, /v\.redd\.it/i],
     extractor: 'gallery-dl',
   },
-  {
-    platform: 'pixiv',
-    patterns: [/pixiv\.net/i],
-    nsfw: true,
-    extractor: 'gallery-dl',
-  },
+  // Pixiv moved to native TypeScript extractor (src/lib/extractors/pixiv)
   {
     platform: 'eporner',
     patterns: [/eporner\.com/i],

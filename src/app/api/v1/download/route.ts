@@ -210,6 +210,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     else if (url.includes('googlevideo.com') || url.includes('youtube.com')) {
       requestHeaders['Referer'] = 'https://www.youtube.com/';
     }
+    // Pixiv requires Referer (images from i.pximg.net)
+    else if (url.includes('pximg.net') || url.includes('pixiv.net')) {
+      requestHeaders['Referer'] = 'https://www.pixiv.net/';
+    }
 
     // Fetch the file with streamMode enabled (no body timeout for large files)
     const result = await fetchStream(url, { headers: requestHeaders, streamMode: true });

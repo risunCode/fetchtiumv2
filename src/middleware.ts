@@ -85,6 +85,7 @@ const PUBLIC_ROUTES = [
   '/api/v1/hls-proxy',   // HLS proxy for CORS-restricted streams
   '/api/v1/merge',       // Video-audio merge endpoint
   '/api/v1/events',
+  '/api/changelog',      // Changelog markdown
   '/api/extract',  // Python extractor (internal calls)
   '/api/yt-stream', // Python YouTube stream (internal calls)
   '/api/health',

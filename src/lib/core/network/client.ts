@@ -1,26 +1,13 @@
 /**
- * Undici HTTP client wrapper with HTTP/2 support
+ * Undici HTTP client wrapper
  * 
- * Uses HTTP/2 when available (Vercel Functions, Railway Node.js)
- * Falls back to undici HTTP/1.1 for Edge runtime or when HTTP/2 unavailable
- * 
+ * Uses undici for all HTTP requests (HTTP/1.1)
  * Provides streaming response support, connection pooling, and abort handling
  */
 
 import { request, Agent, Dispatcher } from 'undici';
 import { createBrotliDecompress, createGunzip, createInflate } from 'zlib';
 import type { Readable, Transform } from 'stream';
-import { isHttp2Available, http2Fetch, getEnvironmentInfo } from './http2-client';
-
-// Detect HTTP/2 availability at startup (zero runtime overhead)
-const USE_HTTP2 = isHttp2Available();
-
-// Log environment info on startup (development only)
-if (process.env.NODE_ENV === 'development') {
-  const envInfo = getEnvironmentInfo();
-  console.log('[Network] Environment:', envInfo);
-  console.log('[Network] Using HTTP/2:', USE_HTTP2);
-}
 
 /**
  * Network configuration defaults
@@ -110,7 +97,6 @@ export interface ConnectionStats {
   keepAliveTimeout: number;
 }
 
-
 // Shared agent for connection pooling
 const agent = new Agent({
   connections: 100,
@@ -178,7 +164,6 @@ function decompressStream(
 
 /**
  * Fetch URL with streaming support and proper redirect tracking
- * Uses HTTP/2 when available, falls back to undici HTTP/1.1
  */
 export async function fetchStream(
   url: string,
@@ -186,55 +171,6 @@ export async function fetchStream(
 ): Promise<FetchStreamResult> {
   trackRequest();
 
-  const {
-    headers = {},
-    method = 'GET',
-    timeout = DEFAULT_REQUEST_TIMEOUT,
-    signal,
-    maxRedirects = DEFAULT_MAX_REDIRECTS,
-    followRedirects = true,
-    streamMode = false,
-  } = options;
-
-  // Try HTTP/2 for HTTPS URLs when available
-  if (USE_HTTP2 && url.startsWith('https://')) {
-    try {
-      const result = await http2Fetch(url, {
-        method,
-        headers,
-        timeout: streamMode ? 0 : timeout,
-        followRedirects,
-        maxRedirects,
-      });
-
-      return {
-        headers: result.headers,
-        status: result.status,
-        stream: decompressStream(
-          result.stream as unknown as Dispatcher.ResponseData['body'],
-          result.headers['content-encoding']
-        ),
-        finalUrl: result.finalUrl,
-      };
-    } catch (error) {
-      // Fall back to undici on HTTP/2 failure
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Network] HTTP/2 failed, falling back to undici:', error);
-      }
-    }
-  }
-
-  // Fallback: Use undici (HTTP/1.1)
-  return fetchStreamUndici(url, options);
-}
-
-/**
- * Fetch URL with undici (HTTP/1.1) - internal implementation
- */
-async function fetchStreamUndici(
-  url: string,
-  options: FetchOptions = {}
-): Promise<FetchStreamResult> {
   const {
     headers = {},
     method = 'GET',
@@ -255,11 +191,9 @@ async function fetchStreamUndici(
         headers,
         dispatcher: agent,
         headersTimeout: timeout,
-        // Stream mode: no body timeout (for progressive streaming)
-        // Normal mode: use timeout to prevent hanging requests
         bodyTimeout: streamMode ? 0 : timeout,
         signal,
-        maxRedirections: 0, // Handle redirects manually
+        maxRedirections: 0,
       } as Parameters<typeof request>[1]);
 
       const { statusCode, headers: responseHeaders, body } = response;
@@ -281,10 +215,7 @@ async function fetchStreamUndici(
         }
 
         await body.dump();
-
-        // Resolve relative URLs
-        const newUrl = new URL(headersObj.location, currentUrl).href;
-        currentUrl = newUrl;
+        currentUrl = new URL(headersObj.location, currentUrl).href;
         continue;
       }
 
@@ -317,7 +248,6 @@ async function fetchStreamUndici(
           throw new NetworkError('Request timeout', { code: NetworkErrorCode.TIMEOUT });
         }
         if (error instanceof NetworkError) throw error;
-
         throw new NetworkError(error.message, { originalError: error.message });
       }
       throw new NetworkError('Unknown error', { originalError: String(error) });
@@ -383,7 +313,6 @@ export async function resolveUrl(
 
       return currentUrl;
     } catch {
-      // Fallback to GET if HEAD fails
       const { finalUrl } = await fetchStream(currentUrl, {
         headers,
         timeout,
@@ -406,10 +335,15 @@ export async function closeConnections(): Promise<void> {
 /**
  * Get file size from URL using HEAD request
  */
-export async function getFileSize(url: string, timeout = 5000): Promise<number | null> {
+export async function getFileSize(
+  url: string, 
+  timeout = 5000,
+  headers: Record<string, string> = {}
+): Promise<number | null> {
   try {
     const response = await request(url, {
       method: 'HEAD',
+      headers,
       dispatcher: agent,
       headersTimeout: timeout,
       bodyTimeout: timeout,
@@ -433,26 +367,17 @@ export async function getFileSize(url: string, timeout = 5000): Promise<number |
  */
 export async function getFileSizes(
   urls: string[],
-  timeout = 5000
+  timeout = 5000,
+  headers: Record<string, string> = {}
 ): Promise<Map<string, number | null>> {
   const results = new Map<string, number | null>();
 
   await Promise.all(
     urls.map(async (url) => {
-      const size = await getFileSize(url, timeout);
+      const size = await getFileSize(url, timeout, headers);
       results.set(url, size);
     })
   );
 
   return results;
-}
-
-// Re-export HTTP/2 utilities
-export { isHttp2Available, getEnvironmentInfo, getSessionStats, closeAllSessions } from './http2-client';
-
-/**
- * Check if HTTP/2 is being used
- */
-export function isUsingHttp2(): boolean {
-  return USE_HTTP2;
 }

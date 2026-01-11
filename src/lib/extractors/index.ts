@@ -17,6 +17,7 @@ import { FacebookExtractor } from './facebook';
 import { InstagramExtractor } from './instagram';
 import { TwitterExtractor } from './twitter';
 import { TikTokExtractor } from './tiktok';
+import { PixivExtractor } from './pixiv';
 // import { YouTubeExtractor } from './youtube';
 
 /**
@@ -28,6 +29,7 @@ const extractors: ExtractorClass[] = [
   InstagramExtractor,
   TwitterExtractor,
   TikTokExtractor,
+  PixivExtractor,
   // YouTubeExtractor,
 ];
 

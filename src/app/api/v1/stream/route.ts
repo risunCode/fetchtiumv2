@@ -142,6 +142,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     else if (url.includes('sinaimg.cn') || url.includes('weibocdn.com')) {
       headers['Referer'] = 'https://weibo.com/';
     }
+    // Pixiv requires Referer (images from i.pximg.net)
+    else if (url.includes('pximg.net') || url.includes('pixiv.net')) {
+      headers['Referer'] = 'https://www.pixiv.net/';
+    }
 
     logger.info('stream', 'Streaming', { 
       url: url.substring(0, 50), 

@@ -148,20 +148,26 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, need
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Reset when closing
+  // Reset when closing - properly cleanup all media
   useEffect(() => {
     if (!isOpen) {
       setError(null);
       setIsLoading(false);
       setLoadingStatus('');
       cleanupHls();
+      
+      // Properly stop and cleanup video
       if (videoRef.current) {
         videoRef.current.pause();
-        videoRef.current.src = '';
+        videoRef.current.removeAttribute('src');
+        videoRef.current.load(); // Force browser to release resources
       }
+      
+      // Properly stop and cleanup audio
       if (audioRef.current) {
         audioRef.current.pause();
-        audioRef.current.src = '';
+        audioRef.current.removeAttribute('src');
+        audioRef.current.load(); // Force browser to release resources
       }
     }
   }, [isOpen, cleanupHls]);
@@ -208,7 +214,7 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, need
     // Progressive streams (merged video+audio, or regular streams)
     // Show loading status for merge endpoint or HLS transcode (FFmpeg processing)
     if (useMergeEndpoint) {
-      setLoadingStatus('Merging video and audio... please wait');
+      setLoadingStatus('Merging video and audio for playback... please wait');
     } else if (needsHlsTranscode) {
       setLoadingStatus('Processing stream... please wait');
     }

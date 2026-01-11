@@ -49,6 +49,8 @@ export interface InternalExtractResult {
       size?: number;
       filename?: string;
       hash?: string;
+      /** Whether URL needs proxy due to CORS/Referer requirements */
+      needsProxy?: boolean;
     }>;
   }>;
   usedCookie?: boolean;
