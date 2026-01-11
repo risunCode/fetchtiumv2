@@ -89,6 +89,9 @@ COPY --from=builder /app/public ./public
 # Copy Python API
 COPY api ./api
 
+# Copy CHANGELOG.md for changelog page
+COPY CHANGELOG.md ./
+
 # Copy requirements.txt for reference
 COPY requirements.txt ./
 
