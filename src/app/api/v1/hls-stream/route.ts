@@ -166,7 +166,13 @@ export async function GET(request: NextRequest): Promise<Response> {
       });
     }
 
-    logger.info('hls-stream', 'Starting FFmpeg', { url: url.substring(0, 100), type: outputType });
+    logger.info('hls-stream', 'Starting FFmpeg', { 
+      ffmpegPath: ffmpegBinary,
+      url: url.substring(0, 100), 
+      type: outputType,
+      isHls,
+      isYouTube,
+    });
 
     // Build FFmpeg args based on source and output type
     let ffmpegArgs: string[];
@@ -239,6 +245,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       ffmpegArgs = [
         '-hide_banner',
         '-loglevel', 'warning',   // Show warnings to debug issues
+        '-reconnect', '1',        // Reconnect on errors
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '5',
         '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,hls', // Enable HLS protocol
         '-user_agent', platformHeaders.userAgent,
         ...(headersString ? ['-headers', headersString] : []),
