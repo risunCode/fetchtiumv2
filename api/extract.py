@@ -2062,7 +2062,132 @@ def method_not_allowed(e):
 
 
 # ============================================
-# 13. LOCAL DEVELOPMENT
+# 13. YOUTUBE STREAM ENDPOINT
+# ============================================
+
+@app.route('/api/yt-stream', methods=['GET'])
+def yt_stream():
+    """
+    Stream YouTube video via yt-dlp.
+    Uses yt-dlp to get direct video URL and streams it.
+    
+    Query params:
+    - url: YouTube video URL or HLS playlist URL
+    - quality: 1080, 720, 480, 360 (default: best available)
+    """
+    from flask import Response, stream_with_context
+    import subprocess
+    import requests
+    
+    url = request.args.get('url')
+    quality = request.args.get('quality', 'best')
+    
+    if not url:
+        return jsonify({'error': 'URL required'}), 400
+    
+    # Validate URL is YouTube
+    if not any(p in url for p in ['youtube.com', 'youtu.be', 'googlevideo.com']):
+        return jsonify({'error': 'Only YouTube URLs supported'}), 400
+    
+    try:
+        # If it's already a direct googlevideo URL, stream it directly
+        if 'googlevideo.com' in url:
+            headers = {
+                'User-Agent': DEFAULT_USER_AGENT,
+                'Referer': 'https://www.youtube.com/',
+                'Origin': 'https://www.youtube.com',
+            }
+            
+            # For HLS, use yt-dlp to download and pipe
+            if '.m3u8' in url or 'playlist' in url:
+                # Use yt-dlp to download HLS and output to stdout
+                cmd = [
+                    'yt-dlp',
+                    '--quiet',
+                    '--no-warnings', 
+                    '-f', 'best',
+                    '-o', '-',  # Output to stdout
+                    url
+                ]
+                
+                process = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                
+                def generate():
+                    while True:
+                        chunk = process.stdout.read(8192)
+                        if not chunk:
+                            break
+                        yield chunk
+                    process.wait()
+                
+                return Response(
+                    stream_with_context(generate()),
+                    mimetype='video/mp4',
+                    headers={
+                        'Content-Disposition': 'inline',
+                        'Access-Control-Allow-Origin': '*',
+                    }
+                )
+            else:
+                # Direct video URL - proxy it
+                resp = requests.get(url, headers=headers, stream=True, timeout=30)
+                
+                def generate():
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        yield chunk
+                
+                return Response(
+                    stream_with_context(generate()),
+                    mimetype=resp.headers.get('Content-Type', 'video/mp4'),
+                    headers={
+                        'Content-Disposition': 'inline',
+                        'Access-Control-Allow-Origin': '*',
+                    }
+                )
+        
+        # For youtube.com URLs, extract and stream best format
+        cmd = [
+            'yt-dlp',
+            '--quiet',
+            '--no-warnings',
+            '-f', f'best[height<={quality}]' if quality != 'best' else 'best',
+            '-o', '-',
+            url
+        ]
+        
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        def generate():
+            while True:
+                chunk = process.stdout.read(8192)
+                if not chunk:
+                    break
+                yield chunk
+            process.wait()
+        
+        return Response(
+            stream_with_context(generate()),
+            mimetype='video/mp4',
+            headers={
+                'Content-Disposition': 'inline',
+                'Access-Control-Allow-Origin': '*',
+            }
+        )
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================
+# 14. LOCAL DEVELOPMENT
 # ============================================
 
 if __name__ == '__main__':

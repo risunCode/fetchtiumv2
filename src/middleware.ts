@@ -84,6 +84,7 @@ const PUBLIC_ROUTES = [
   '/api/v1/merge',       // Video-audio merge endpoint
   '/api/v1/events',
   '/api/extract',  // Python extractor (internal calls)
+  '/api/yt-stream', // Python YouTube stream (internal calls)
   '/api/health',
 ];
 

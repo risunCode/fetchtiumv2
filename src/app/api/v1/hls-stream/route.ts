@@ -130,6 +130,42 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   }
   
+  // For YouTube HLS, redirect to Python yt-dlp endpoint (more reliable than FFmpeg)
+  if (isYouTube && isHls) {
+    logger.info('hls-stream', 'Redirecting YouTube HLS to yt-dlp endpoint', { url: url.substring(0, 80) });
+    
+    // Build Python endpoint URL
+    const pythonUrl = process.env.NODE_ENV === 'development'
+      ? `http://127.0.0.1:3001/api/yt-stream?url=${encodeURIComponent(url)}`
+      : `/api/yt-stream?url=${encodeURIComponent(url)}`;
+    
+    // In production, proxy to Python endpoint
+    if (process.env.NODE_ENV !== 'development') {
+      const pyResponse = await fetch(`http://127.0.0.1:3001/api/yt-stream?url=${encodeURIComponent(url)}`);
+      
+      if (!pyResponse.ok) {
+        return new Response(JSON.stringify({ 
+          error: { code: 'STREAM_FAILED', message: 'YouTube stream failed' } 
+        }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      
+      return new Response(pyResponse.body, {
+        status: 200,
+        headers: {
+          'Content-Type': 'video/mp4',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-cache',
+        },
+      });
+    }
+    
+    // In development, redirect
+    return Response.redirect(pythonUrl, 302);
+  }
+  
   // For BiliBili video, check if we have separate audio URL for merging
   const hasSeparateAudio = isBiliBiliDash && audioUrlParam && outputType === 'video';
   
