@@ -72,12 +72,14 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 
 # Install Python packages
 # - yt-dlp: YouTube, SoundCloud, BiliBili, Twitch, Bandcamp extraction
-# - gallery-dl: Reddit, Pixiv, Pinterest, Weibo extraction
+# - gallery-dl: Reddit, Pinterest, Weibo extraction
 # - flask: Python API server
+# - httpx[http2]: HTTP/2 client for faster requests
 RUN pip install --no-cache-dir \
     yt-dlp \
     gallery-dl \
-    flask
+    flask \
+    "httpx[http2]"
 
 # Copy built Next.js application from builder stage
 COPY --from=builder /app/.next/standalone ./
