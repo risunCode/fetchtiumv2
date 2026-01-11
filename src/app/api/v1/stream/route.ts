@@ -149,7 +149,40 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
 
     // Fetch the stream with streamMode enabled (no body timeout)
-    const result = await fetchStream(url, { headers, streamMode: true });
+    // Don't follow redirects - we'll check if it's a rickroll/expired URL redirect
+    const result = await fetchStream(url, { headers, streamMode: true, followRedirects: false });
+    
+    // Check for redirect (expired URL detection)
+    // Some platforms redirect expired URLs to rickroll or placeholder
+    if (result.status >= 300 && result.status < 400) {
+      const location = result.headers['location'];
+      
+      // Check if redirecting to known placeholder/rickroll URLs
+      const isRickroll = location?.includes('youtube.com/watch') || 
+                         location?.includes('youtu.be') ||
+                         location?.includes('/na.mp4') ||
+                         location?.includes('static.eporner.com/na');
+      
+      if (isRickroll) {
+        logger.warn('stream', 'URL expired (rickroll redirect)', { 
+          url: url.substring(0, 50),
+          redirect: location?.substring(0, 50)
+        });
+        return new Response(JSON.stringify({ 
+          error: { 
+            code: 'URL_EXPIRED', 
+            message: 'Media URL has expired. Please extract again.' 
+          } 
+        }), {
+          status: 410, // Gone
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      
+      // For other redirects, follow them manually
+      const redirectResult = await fetchStream(location!, { headers, streamMode: true });
+      Object.assign(result, redirectResult);
+    }
 
     // Build response headers
     const responseHeaders: Record<string, string> = {

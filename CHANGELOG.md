@@ -4,6 +4,59 @@ All notable changes to FetchtiumV2.
 
 ---
 
+## [1.5.0] - 2026-01-11 — HTTP/2 Support + Rule34Video + Stream Improvements
+
+### 🚀 What's New
+
+- **HTTP/2 Support (TypeScript)** - Auto-detect and use HTTP/2 for HTTPS requests when available (Vercel Functions, Railway)
+- **HTTP/2 Support (Python)** - Shared `httpx` client with HTTP/2 and 5-minute connection pooling
+- **Rule34Video Support** - Multi-format extraction (360p-4K) via yt-dlp with URL resolution
+- **Eporner Multi-Format** - Returns all available formats (240p-1080p 60fps) with file sizes
+- **URL Resolution** - Wrapper URLs (Rule34Video, Eporner) resolved to real CDN URLs in parallel
+- **Stream Expired URL Detection** - Returns "URL_EXPIRED" error instead of following rickroll redirects
+
+### 🔧 Technical Changes
+
+- **http2-client.ts** - New HTTP/2 client with session pooling (5-min keepalive), auto-cleanup
+- **client.ts** - Smart detection: HTTP/2 for HTTPS when available, fallback to undici HTTP/1.1
+- **api/extract.py** - Shared `HTTP_CLIENT` with httpx HTTP/2, 5-min keepalive, 10 max connections
+- **resolve_media_url()** - Resolves wrapper URLs to CDN, removes `download=true` params
+- **resolve_media_urls_parallel()** - Parallel URL resolution with ThreadPoolExecutor (5 workers)
+- **transform_eporner_result()** - Checks `quality` field first (Rule34Video uses this), adds "p" suffix
+- **stream route** - Detects rickroll/placeholder redirects and returns 410 Gone with URL_EXPIRED code
+
+### 🐛 Fixes
+
+- **Rule34Video Quality** - Fixed quality showing "0", "1", "2" instead of "360p", "720p", "1080p"
+- **Rule34Video Playback** - Fixed "Open in new tab" redirecting to rickroll (URL resolution)
+- **Rule34Video Download** - Fixed browser downloading instead of playing (removed `download=true` param)
+- **Eporner Quality** - Fixed quality string formatting for all formats
+
+### 📦 New Files
+
+```
+src/lib/core/network/http2-client.ts  # HTTP/2 client with session pooling
+```
+
+### 📋 Dependencies
+
+```
+# Python (requirements.txt)
+httpx[http2]  # HTTP/2 support for Python extractor
+```
+
+### 🔧 Environment Detection
+
+```typescript
+// Auto-detected at startup (zero runtime overhead)
+- Vercel Functions → HTTP/2 ✓
+- Railway Node.js → HTTP/2 ✓
+- Vercel Edge → undici HTTP/1.1 (no http2 module)
+- Local dev → HTTP/2 ✓
+```
+
+---
+
 ## [1.4.0] - 2026-01-11 — Twitter, Instagram Stories, Pinterest Video, YouTube HLS
 
 ### 🚀 What's New

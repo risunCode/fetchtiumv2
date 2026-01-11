@@ -35,6 +35,7 @@ FILE ORGANIZATION:
 from flask import Flask, request, jsonify
 import re
 from urllib.parse import urlparse
+import httpx
 
 
 # ============================================
@@ -64,6 +65,20 @@ DEFAULT_HEADERS = {
     'Sec-Fetch-Site': 'none',
     'Upgrade-Insecure-Requests': '1',
 }
+
+# Shared HTTP/2 client for all requests (faster than HTTP/1.1)
+# Using connection pooling with 5 minute keepalive for better performance
+HTTP_CLIENT = httpx.Client(
+    http2=True,
+    timeout=10.0,
+    follow_redirects=True,
+    headers={'User-Agent': DEFAULT_USER_AGENT},
+    limits=httpx.Limits(
+        max_keepalive_connections=10,
+        max_connections=20,
+        keepalive_expiry=300,  # 5 minutes
+    ),
+)
 
 # Default target resolutions for video format selection
 DEFAULT_TARGET_HEIGHTS = [1080, 720, 480, 360]
@@ -138,14 +153,14 @@ PLATFORM_CONFIG = {
         'custom_headers': None,
     },
     'eporner': {
-        'extractor': 'gallery-dl',
+        'extractor': 'yt-dlp',
         'patterns': [r'eporner\.com'],
         'nsfw': True,
         'short_url_pattern': None,
         'custom_headers': None,
     },
     'rule34video': {
-        'extractor': 'gallery-dl',
+        'extractor': 'yt-dlp',
         'patterns': [r'rule34video\.com'],
         'nsfw': True,
         'short_url_pattern': None,
@@ -459,7 +474,7 @@ def resolve_short_url(url: str, platform: str = None) -> str:
     """
     Resolve short URLs to full URLs.
     
-    Uses DEFAULT_USER_AGENT for consistency.
+    Uses shared HTTP/2 client for faster resolution.
     Cleans up tracking params from resolved URLs.
     Falls back to original URL on failure.
     
@@ -472,7 +487,6 @@ def resolve_short_url(url: str, platform: str = None) -> str:
         
     Requirements: 5.1, 5.2, 5.3, 5.4
     """
-    import requests
     from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
     
     # Check if URL matches any known short URL pattern
@@ -493,14 +507,9 @@ def resolve_short_url(url: str, platform: str = None) -> str:
         return url
     
     try:
-        # Follow redirects to get the full URL
-        response = requests.head(
-            url,
-            allow_redirects=True,
-            headers={'User-Agent': DEFAULT_USER_AGENT},
-            timeout=10
-        )
-        resolved_url = response.url
+        # Use shared HTTP/2 client
+        response = HTTP_CLIENT.head(url)
+        resolved_url = str(response.url)
         
         # Parse the resolved URL
         parsed = urlparse(resolved_url)
@@ -556,6 +565,118 @@ def resolve_short_url(url: str, platform: str = None) -> str:
         return url
 
 
+def resolve_media_url(url: str) -> str:
+    """
+    Resolve wrapper/redirect URLs to real CDN URLs.
+    
+    Some platforms (Rule34Video, Eporner) return wrapper URLs that redirect
+    to the real CDN URL. This function follows the redirect to get the final URL.
+    
+    Uses shared HTTP/2 client for faster resolution.
+    
+    Args:
+        url: Media URL that may be a wrapper/redirect URL
+        
+    Returns:
+        Resolved CDN URL, or original URL if resolution fails
+    """
+    from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
+    
+    # Only resolve known wrapper URL patterns
+    wrapper_patterns = [
+        r'rule34video\.com/get_file/',
+        r'eporner\.com/.*redirect',
+    ]
+    
+    is_wrapper = any(re.search(p, url, re.IGNORECASE) for p in wrapper_patterns)
+    if not is_wrapper:
+        return url
+    
+    try:
+        # Use shared HTTP/2 client
+        response = HTTP_CLIENT.head(url)
+        
+        # Get final URL after redirects
+        final_url = str(response.url)
+        
+        # Check if we got redirected to rickroll (URL expired)
+        if 'youtube.com' in final_url or 'youtu.be' in final_url:
+            return url
+        
+        # Remove download-related params so browser plays instead of downloads
+        parsed = urlparse(final_url)
+        if parsed.query:
+            query_params = parse_qs(parsed.query, keep_blank_values=True)
+            # Remove download params
+            download_params = ['download', 'download_filename']
+            cleaned_params = {
+                k: v for k, v in query_params.items()
+                if k.lower() not in download_params
+            }
+            cleaned_query = urlencode(
+                {k: v[0] if len(v) == 1 else v for k, v in cleaned_params.items()},
+                doseq=True
+            )
+            final_url = urlunparse((
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                cleaned_query,
+                ''
+            ))
+        
+        return final_url
+        
+    except Exception:
+        return url
+
+
+def resolve_media_urls_parallel(urls: list) -> list:
+    """
+    Resolve multiple wrapper URLs in parallel for faster extraction.
+    
+    Args:
+        urls: List of URLs to resolve
+        
+    Returns:
+        List of resolved URLs (same order as input)
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    # Check if any URLs need resolution
+    wrapper_patterns = [
+        r'rule34video\.com/get_file/',
+        r'eporner\.com/.*redirect',
+    ]
+    
+    needs_resolve = []
+    for i, url in enumerate(urls):
+        if any(re.search(p, url, re.IGNORECASE) for p in wrapper_patterns):
+            needs_resolve.append((i, url))
+    
+    if not needs_resolve:
+        return urls
+    
+    # Resolve in parallel
+    results = list(urls)  # Copy
+    
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        future_to_idx = {
+            executor.submit(resolve_media_url, url): idx 
+            for idx, url in needs_resolve
+        }
+        
+        for future in as_completed(future_to_idx):
+            idx = future_to_idx[future]
+            try:
+                results[idx] = future.result()
+            except Exception:
+                pass  # Keep original URL on error
+    
+    return results
+
+
 # ============================================
 # 8. EXTRACTORS
 # ============================================
@@ -597,6 +718,10 @@ def extract_with_ytdlp(url: str, cookie: str = None) -> dict:
             return transform_twitch_result
         elif platform == 'bandcamp':
             return transform_bandcamp_result
+        elif platform == 'eporner':
+            return transform_eporner_result
+        elif platform == 'rule34video':
+            return transform_nsfw_video_result
         else:
             return transform_ytdlp_result
     
@@ -1911,6 +2036,203 @@ def _extract_bandcamp_audio_sources(track_info: dict) -> list:
     return processed_sources
 
 
+def transform_eporner_result(info: dict, original_url: str = None) -> dict:
+    """
+    Transform yt-dlp Eporner video info to standard Fetchtium format.
+    
+    Returns all available video formats with sizes.
+    
+    Extracts:
+    - title, description, thumbnail from yt-dlp info
+    - Multiple video formats (240p, 360p, 480p, 720p, 1080p)
+    - File sizes when available
+    """
+    items = []
+    
+    formats = info.get('formats', [])
+    if not formats and info.get('url'):
+        formats = [info]
+    
+    # Collect all URLs first for parallel resolution
+    url_list = [fmt.get('url') for fmt in formats if fmt.get('url')]
+    resolved_urls = resolve_media_urls_parallel(url_list)
+    url_map = dict(zip(url_list, resolved_urls))
+    
+    video_sources = []
+    
+    for fmt in formats:
+        if not fmt.get('url'):
+            continue
+        
+        height = fmt.get('height', 0)
+        width = fmt.get('width', 0)
+        fps = fmt.get('fps')
+        ext = fmt.get('ext', 'mp4')
+        filesize = fmt.get('filesize') or fmt.get('filesize_approx')
+        
+        # Build quality string
+        # Check 'quality' field first (used by Rule34Video), then format_note, then format_id
+        raw_quality = fmt.get('quality') or fmt.get('format_note') or fmt.get('format_id')
+        
+        # Clean up quality string (remove _HD suffix, etc)
+        if raw_quality:
+            quality = str(raw_quality).replace('_HD', '').replace('@60fps', '')
+            # If quality is just a number (e.g., "360", "720"), add "p" suffix
+            if quality.isdigit():
+                quality = f"{quality}p"
+        else:
+            quality = f"{height}p" if height else 'default'
+        
+        # Override with height-based quality if height is available
+        if height:
+            quality = f"{height}p"
+            if fps and fps > 30:
+                quality = f"{height}p {int(fps)}fps"
+        
+        # Use resolved URL from parallel resolution
+        original_url_fmt = fmt.get('url')
+        resolved_url = url_map.get(original_url_fmt, original_url_fmt)
+        
+        source = {
+            'quality': quality,
+            'url': resolved_url,
+            'resolution': f"{width}x{height}" if width and height else None,
+            'mime': f"video/{ext}",
+            'extension': ext,
+            'filename': generate_filename(info, fmt, 'video'),
+            'hasAudio': True,  # Eporner formats include audio
+            'needsMerge': False,
+        }
+        
+        if filesize:
+            source['size'] = int(filesize)
+        
+        if fps:
+            source['fps'] = int(fps)
+        
+        # Remove None values
+        source = {k: v for k, v in source.items() if v is not None}
+        
+        video_sources.append(source)
+    
+    # Sort by height (highest first), then by fps
+    def get_sort_key(source):
+        # Extract height from resolution or quality string
+        resolution = source.get('resolution', '')
+        quality = source.get('quality', '')
+        
+        height = 0
+        if resolution and 'x' in resolution:
+            try:
+                height = int(resolution.split('x')[1])
+            except:
+                pass
+        elif quality:
+            # Try to extract from quality string like "1080p" or "720p 60fps"
+            match = re.search(r'(\d+)p', quality)
+            if match:
+                height = int(match.group(1))
+        
+        fps = source.get('fps', 0)
+        return (height, fps)
+    
+    video_sources.sort(key=get_sort_key, reverse=True)
+    
+    # Fallback if no formats found
+    if not video_sources and info.get('url'):
+        video_sources = [{
+            'quality': 'default',
+            'url': info.get('url'),
+            'mime': 'video/mp4',
+            'extension': 'mp4',
+            'filename': generate_filename(info, {'ext': 'mp4'}, 'video'),
+            'hasAudio': True,
+            'needsMerge': False,
+        }]
+    
+    items.append({
+        'index': 0,
+        'type': 'video',
+        'thumbnail': info.get('thumbnail'),
+        'sources': video_sources,
+    })
+    
+    result = {
+        'success': True,
+        'platform': 'eporner',
+        'contentType': 'video',
+        'title': info.get('title'),
+        'author': info.get('uploader'),
+        'authorUrl': info.get('uploader_url'),
+        'id': str(info.get('id', '')),
+        'description': info.get('description'),
+        'uploadDate': info.get('upload_date'),
+        'duration': info.get('duration'),
+        'items': items,
+        'isNsfw': True,
+    }
+    
+    # Add stats if available
+    stats = {}
+    if info.get('view_count'):
+        stats['views'] = info.get('view_count')
+    if info.get('average_rating'):
+        stats['rating'] = info.get('average_rating')
+    if stats:
+        result['stats'] = stats
+    
+    return sanitize_output(result)
+
+
+def transform_nsfw_video_result(info: dict, original_url: str = None) -> dict:
+    """
+    Generic transformer for NSFW video platforms (Rule34Video, etc).
+    
+    Similar to eporner but with platform detection.
+    """
+    platform = detect_platform(original_url) or 'unknown'
+    
+    # Reuse eporner transformer logic
+    result = transform_eporner_result(info, original_url)
+    result['platform'] = platform
+    
+    return result
+
+
+def _get_valid_thumbnail(metadata: dict, media_url: str = None) -> str | None:
+    """
+    Get a valid thumbnail URL from metadata.
+    
+    Handles cases where thumbnail is a placeholder string like "nsfw", "default", etc.
+    Falls back to the media URL itself for images.
+    
+    Args:
+        metadata: gallery-dl metadata dict
+        media_url: Original media URL (used as fallback for images)
+        
+    Returns:
+        Valid thumbnail URL or None
+    """
+    thumbnail = metadata.get('thumbnail') or metadata.get('preview')
+    
+    # Check if thumbnail is a valid URL
+    if thumbnail and isinstance(thumbnail, str):
+        # Skip placeholder strings that aren't URLs
+        if thumbnail.startswith('http://') or thumbnail.startswith('https://'):
+            return thumbnail
+        # Common placeholder values to skip
+        if thumbnail.lower() in ('nsfw', 'default', 'self', 'spoiler', 'image', ''):
+            thumbnail = None
+    
+    # For images, use the media URL itself as thumbnail
+    if not thumbnail and media_url:
+        ext = media_url.rsplit('.', 1)[-1].lower() if '.' in media_url else ''
+        if ext in ('jpg', 'jpeg', 'png', 'gif', 'webp'):
+            thumbnail = media_url
+    
+    return thumbnail
+
+
 def transform_gallery_dl_result(results: list, original_url: str) -> dict:
     """
     Transform gallery-dl results to standard Fetchtium format.
@@ -1972,7 +2294,7 @@ def transform_gallery_dl_result(results: list, original_url: str) -> dict:
         items.append({
             'index': i,
             'type': media_type,
-            'thumbnail': metadata.get('thumbnail') or metadata.get('preview'),
+            'thumbnail': _get_valid_thumbnail(metadata, media_url),
             'sources': [source],
         })
     

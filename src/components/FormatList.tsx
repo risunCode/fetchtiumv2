@@ -60,6 +60,25 @@ function isExperimental(source: MediaSource): boolean {
 }
 
 /**
+ * Build stream URL for opening media in new tab
+ * Routes through /api/v1/stream to handle expired URLs (Eporner, Rule34Video, etc)
+ * @param source - Media source with optional hash
+ * @returns Stream URL with h= or url= parameter
+ */
+export function buildStreamUrl(source: MediaSource): string {
+  const params = new URLSearchParams();
+  
+  // Prefer hash over raw URL for security
+  if (source.hash) {
+    params.set('h', source.hash);
+  } else {
+    params.set('url', source.url);
+  }
+  
+  return `/api/v1/stream?${params.toString()}`;
+}
+
+/**
  * Build download URL using hash-first approach
  * For HLS/DASH/needsProxy sources, uses hls-stream endpoint for server-side transcoding
  * @param source - Media source with optional hash
@@ -165,6 +184,8 @@ function FormatRow({ item, source, result, onPlay }: FormatRowProps) {
   }, [item.type, source, result.items]);
 
   const handleOpen = useCallback(() => {
+    // Open direct URL - most platforms work without proxy
+    // Rule34Video/Eporner URLs work directly in browser
     window.open(source.url, '_blank');
   }, [source.url]);
 

@@ -1,11 +1,26 @@
 /**
- * Undici HTTP client wrapper
+ * Undici HTTP client wrapper with HTTP/2 support
+ * 
+ * Uses HTTP/2 when available (Vercel Functions, Railway Node.js)
+ * Falls back to undici HTTP/1.1 for Edge runtime or when HTTP/2 unavailable
+ * 
  * Provides streaming response support, connection pooling, and abort handling
  */
 
 import { request, Agent, Dispatcher } from 'undici';
 import { createBrotliDecompress, createGunzip, createInflate } from 'zlib';
 import type { Readable, Transform } from 'stream';
+import { isHttp2Available, http2Fetch, getEnvironmentInfo } from './http2-client';
+
+// Detect HTTP/2 availability at startup (zero runtime overhead)
+const USE_HTTP2 = isHttp2Available();
+
+// Log environment info on startup (development only)
+if (process.env.NODE_ENV === 'development') {
+  const envInfo = getEnvironmentInfo();
+  console.log('[Network] Environment:', envInfo);
+  console.log('[Network] Using HTTP/2:', USE_HTTP2);
+}
 
 /**
  * Network configuration defaults
@@ -163,6 +178,7 @@ function decompressStream(
 
 /**
  * Fetch URL with streaming support and proper redirect tracking
+ * Uses HTTP/2 when available, falls back to undici HTTP/1.1
  */
 export async function fetchStream(
   url: string,
@@ -170,6 +186,55 @@ export async function fetchStream(
 ): Promise<FetchStreamResult> {
   trackRequest();
 
+  const {
+    headers = {},
+    method = 'GET',
+    timeout = DEFAULT_REQUEST_TIMEOUT,
+    signal,
+    maxRedirects = DEFAULT_MAX_REDIRECTS,
+    followRedirects = true,
+    streamMode = false,
+  } = options;
+
+  // Try HTTP/2 for HTTPS URLs when available
+  if (USE_HTTP2 && url.startsWith('https://')) {
+    try {
+      const result = await http2Fetch(url, {
+        method,
+        headers,
+        timeout: streamMode ? 0 : timeout,
+        followRedirects,
+        maxRedirects,
+      });
+
+      return {
+        headers: result.headers,
+        status: result.status,
+        stream: decompressStream(
+          result.stream as unknown as Dispatcher.ResponseData['body'],
+          result.headers['content-encoding']
+        ),
+        finalUrl: result.finalUrl,
+      };
+    } catch (error) {
+      // Fall back to undici on HTTP/2 failure
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Network] HTTP/2 failed, falling back to undici:', error);
+      }
+    }
+  }
+
+  // Fallback: Use undici (HTTP/1.1)
+  return fetchStreamUndici(url, options);
+}
+
+/**
+ * Fetch URL with undici (HTTP/1.1) - internal implementation
+ */
+async function fetchStreamUndici(
+  url: string,
+  options: FetchOptions = {}
+): Promise<FetchStreamResult> {
   const {
     headers = {},
     method = 'GET',
@@ -380,4 +445,14 @@ export async function getFileSizes(
   );
 
   return results;
+}
+
+// Re-export HTTP/2 utilities
+export { isHttp2Available, getEnvironmentInfo, getSessionStats, closeAllSessions } from './http2-client';
+
+/**
+ * Check if HTTP/2 is being used
+ */
+export function isUsingHttp2(): boolean {
+  return USE_HTTP2;
 }

@@ -1,3 +1,4 @@
 yt-dlp
 gallery-dl
 flask
+httpx[http2]
