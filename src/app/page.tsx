@@ -179,11 +179,12 @@ export default function Home() {
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors"
+                  title="Native extractors only (Facebook, Instagram, TikTok, Twitter)"
                 >
                   <svg className="w-5 h-5 text-zinc-400" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M24 22.525H0l12-21.05 12 21.05z"/>
                   </svg>
-                  <span>Vercel <span className="text-amber-400 text-xs ml-1">• Limited</span></span>
+                  <span>Vercel <span className="text-amber-400 text-xs ml-1">• Native Only</span></span>
                 </a>
               </div>
             </div>

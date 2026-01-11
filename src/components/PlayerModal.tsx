@@ -215,17 +215,62 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, need
     
     mediaElement.src = streamUrl;
     
+    // Buffer threshold for merge endpoint - wait for enough buffer before playing
+    // This prevents audio/video desync when FFmpeg is still processing
+    const BUFFER_THRESHOLD = 3; // seconds
+    
     const handlePlaying = () => setIsLoading(false);
-    mediaElement.addEventListener('playing', handlePlaying, { once: true });
-    mediaElement.addEventListener('canplay', handlePlaying, { once: true });
-    mediaElement.addEventListener('loadeddata', () => {
-      setIsLoading(false);
-      mediaElement.play().catch(() => {});
-    }, { once: true });
+    
+    if (useMergeEndpoint) {
+      // For merge streams, wait for buffer threshold before playing
+      let hasStartedPlaying = false;
+      
+      const checkBuffer = () => {
+        if (hasStartedPlaying) return;
+        
+        const buffered = mediaElement.buffered;
+        if (buffered.length > 0) {
+          const bufferedSeconds = buffered.end(0) - buffered.start(0);
+          setLoadingStatus(`Buffering... ${bufferedSeconds.toFixed(1)}s`);
+          
+          if (bufferedSeconds >= BUFFER_THRESHOLD) {
+            hasStartedPlaying = true;
+            setIsLoading(false);
+            mediaElement.play().catch(() => {});
+          }
+        }
+      };
+      
+      // Check buffer on progress events
+      mediaElement.addEventListener('progress', checkBuffer);
+      mediaElement.addEventListener('playing', handlePlaying, { once: true });
+      
+      // Fallback: if canplaythrough fires, we have enough buffer
+      mediaElement.addEventListener('canplaythrough', () => {
+        if (!hasStartedPlaying) {
+          hasStartedPlaying = true;
+          setIsLoading(false);
+          mediaElement.play().catch(() => {});
+        }
+      }, { once: true });
+      
+      return () => {
+        mediaElement.removeEventListener('progress', checkBuffer);
+        mediaElement.removeEventListener('playing', handlePlaying);
+      };
+    } else {
+      // Regular streams - play as soon as ready
+      mediaElement.addEventListener('playing', handlePlaying, { once: true });
+      mediaElement.addEventListener('canplay', handlePlaying, { once: true });
+      mediaElement.addEventListener('loadeddata', () => {
+        setIsLoading(false);
+        mediaElement.play().catch(() => {});
+      }, { once: true });
 
-    return () => {
-      mediaElement.removeEventListener('playing', handlePlaying);
-    };
+      return () => {
+        mediaElement.removeEventListener('playing', handlePlaying);
+      };
+    }
   }, [isOpen, streamUrl, type, isHls, useMergeEndpoint, needsHlsTranscode, cleanupHls]);
 
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {

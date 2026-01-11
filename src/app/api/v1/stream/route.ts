@@ -138,6 +138,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     else if (url.includes('googlevideo.com') || url.includes('youtube.com')) {
       headers['Referer'] = 'https://www.youtube.com/';
     }
+    // Weibo requires Referer
+    else if (url.includes('sinaimg.cn') || url.includes('weibocdn.com')) {
+      headers['Referer'] = 'https://weibo.com/';
+    }
 
     logger.info('stream', 'Streaming', { 
       url: url.substring(0, 50), 

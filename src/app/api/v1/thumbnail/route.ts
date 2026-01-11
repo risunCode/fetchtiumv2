@@ -21,9 +21,13 @@ export const dynamic = 'force-dynamic';
 
 // Allowed thumbnail domains (whitelist for security)
 const ALLOWED_DOMAINS = [
+  // Instagram
   'cdninstagram.com',
   'scontent.cdninstagram.com',
   'instagram.com',
+  // Weibo
+  'sinaimg.cn',
+  'weibocdn.com',
 ];
 
 /**
