@@ -42,6 +42,12 @@ export interface MediaSource {
   codec?: string;
   /** Whether video has audio track - YouTube only */
   hasAudio?: boolean;
+  /** Whether video needs merge with separate audio - YouTube DASH */
+  needsMerge?: boolean;
+  /** Whether URL needs proxy due to CORS - YouTube HLS */
+  needsProxy?: boolean;
+  /** Format type (hls, dash, progressive) */
+  format?: string;
 }
 
 /**
@@ -53,6 +59,8 @@ export interface MediaItem {
   thumbnail?: string;
   /** Short hash for thumbnail proxy URL (16 chars) */
   thumbnailHash?: string;
+  /** Format type for the item (hls, dash) - YouTube only */
+  format?: string;
   sources: MediaSource[];
 }
 
@@ -70,6 +78,7 @@ export interface ExtractResult {
   contentType: string;
   title?: string;
   author?: string;
+  authorUsername?: string;
   id?: string;
   description?: string;
   uploadDate?: string;

@@ -7,16 +7,25 @@ interface CookieModalProps {
   onClose: () => void;
 }
 
-type Platform = 'facebook' | 'instagram' | 'twitter' | 'tiktok';
+type Platform = 'facebook' | 'instagram' | 'twitter' | 'youtube';
 
-const PLATFORMS: Platform[] = ['facebook', 'instagram', 'twitter', 'tiktok'];
+const PLATFORMS: Platform[] = ['facebook', 'instagram', 'twitter', 'youtube'];
 
 /**
  * Parse cookie string (JSON or Netscape format) to Netscape format
  * Returns unique cookies only (deduplicated by name)
  */
-function parseCookies(text: string): { ok: true; data: string; count: number; format: string } | { ok: false; error: string } {
+function parseCookies(text: string, platform: Platform): { ok: true; data: string; count: number; format: string } | { ok: false; error: string } {
   const trimmed = text.trim();
+  
+  // Default domain based on platform
+  const defaultDomains: Record<Platform, string> = {
+    facebook: '.facebook.com',
+    instagram: '.instagram.com',
+    twitter: '.twitter.com',
+    youtube: '.youtube.com',
+  };
+  const defaultDomain = defaultDomains[platform];
   
   // Try JSON format
   if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
@@ -26,7 +35,7 @@ function parseCookies(text: string): { ok: true; data: string; count: number; fo
       
       // Deduplicate by cookie name (keep last occurrence)
       const cookieMap = new Map<string, typeof data[0]>();
-      data.forEach((c: { name?: string; value?: string; domain?: string; path?: string; expirationDate?: number }) => {
+      data.forEach((c: { name?: string; value?: string; domain?: string; path?: string; expirationDate?: number; secure?: boolean; httpOnly?: boolean }) => {
         if (c.name && c.value) {
           cookieMap.set(c.name, c);
         }
@@ -35,10 +44,10 @@ function parseCookies(text: string): { ok: true; data: string; count: number; fo
       const lines = ['# Netscape HTTP Cookie File'];
       cookieMap.forEach((c) => {
         lines.push([
-          c.domain || '.facebook.com',
+          c.domain || defaultDomain,
           'TRUE',
           c.path || '/',
-          'TRUE',
+          c.secure ? 'TRUE' : 'FALSE',
           Math.floor(c.expirationDate || Date.now() / 1000 + 31536000),
           c.name,
           c.value,
@@ -139,7 +148,7 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
     facebook: 0,
     instagram: 0,
     twitter: 0,
-    tiktok: 0,
+    youtube: 0,
   });
   const [hasApiKey, setHasApiKey] = useState(false);
 
@@ -149,7 +158,7 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
       facebook: getCookieCount('facebook'),
       instagram: getCookieCount('instagram'),
       twitter: getCookieCount('twitter'),
-      tiktok: getCookieCount('tiktok'),
+      youtube: getCookieCount('youtube'),
     });
     setHasApiKey(!!getApiKey());
   }, []);
@@ -182,7 +191,7 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
       return;
     }
 
-    const result = parseCookies(cookieInput);
+    const result = parseCookies(cookieInput, platform);
     if (result.ok) {
       saveCookie(platform, result.data);
       setStatus({ type: 'success', message: `✓ Saved ${result.count} cookies (${result.format})` });
@@ -284,12 +293,21 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
               </div>
 
               {/* Cookie input */}
-              <textarea
-                value={cookieInput}
-                onChange={(e) => setCookieInput(e.target.value)}
-                placeholder="Paste cookies here..."
-                className="w-full h-28 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
-              />
+              {platform === 'youtube' && savedCounts.youtube > 0 ? (
+                <div className="w-full h-28 bg-zinc-800/50 border border-zinc-700 rounded-xl px-3 py-2 flex items-center justify-center">
+                  <div className="text-center">
+                    <p className="text-emerald-400 text-sm">✓ YouTube cookie configured</p>
+                    <p className="text-zinc-500 text-xs mt-1">Clear to reconfigure</p>
+                  </div>
+                </div>
+              ) : (
+                <textarea
+                  value={cookieInput}
+                  onChange={(e) => setCookieInput(e.target.value)}
+                  placeholder="Paste cookies here..."
+                  className="w-full h-28 bg-zinc-800 border border-zinc-700 rounded-xl px-3 py-2 text-sm font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 resize-none"
+                />
+              )}
 
               {/* Status message */}
               {status && (
@@ -310,7 +328,12 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveCookie}
-                  className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-sm font-medium transition-colors"
+                  disabled={platform === 'youtube' && savedCounts.youtube > 0}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    platform === 'youtube' && savedCounts.youtube > 0
+                      ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                      : 'bg-emerald-600 hover:bg-emerald-500'
+                  }`}
                 >
                   Save
                 </button>
@@ -394,12 +417,37 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
 
 export default CookieModal;
 
+/**
+ * Convert Netscape cookie format to HTTP Cookie header format
+ * Netscape: domain\tTRUE\tpath\tsecure\texpiry\tname\tvalue
+ * Header: name=value; name2=value2
+ */
+function netscapeToCookieHeader(netscape: string): string {
+  const lines = netscape
+    .split('\n')
+    .filter(l => l.trim() && !l.startsWith('#'));
+  
+  const cookies: string[] = [];
+  for (const line of lines) {
+    const parts = line.split('\t');
+    if (parts.length >= 7) {
+      const name = parts[5];
+      const value = parts[6];
+      cookies.push(`${name}=${value}`);
+    }
+  }
+  
+  return cookies.join('; ');
+}
 
 /**
  * Get saved cookie for a platform (exported for use in extraction)
+ * Returns cookie in HTTP Cookie header format (name=value; name2=value2)
  */
 export function getSavedCookie(platform: Platform): string {
-  return getCookie(platform);
+  const netscape = getCookie(platform);
+  if (!netscape) return '';
+  return netscapeToCookieHeader(netscape);
 }
 
 /**
@@ -421,7 +469,7 @@ export function detectPlatformFromUrl(url: string): Platform | null {
   if (u.includes('instagram.com') || u.includes('instagr.am')) return 'instagram';
   // Twitter: twitter.com, x.com, t.co
   if (u.includes('twitter.com') || u.includes('x.com') || u.includes('t.co')) return 'twitter';
-  // TikTok: tiktok.com, vm.tiktok.com, vt.tiktok.com
-  if (u.includes('tiktok.com') || u.includes('vm.tiktok.com') || u.includes('vt.tiktok.com')) return 'tiktok';
+  // YouTube: youtube.com, youtu.be, youtube-nocookie.com
+  if (u.includes('youtube.com') || u.includes('youtu.be') || u.includes('youtube-nocookie.com')) return 'youtube';
   return null;
 }

@@ -15,15 +15,20 @@ import { logger } from '@/lib/utils/logger';
 import {
   matchUrl,
   extractShortcode,
+  extractStoryUsername,
+  isStoryUrl,
   shortcodeToMediaId,
   fetchGraphQL,
   fetchInternalAPI,
+  fetchStoryByUsername,
   type GraphQLResponse,
   type InternalAPIResponse,
+  type StoryResponse,
 } from './scanner';
 import {
   parseGraphQLResponse,
   parseAPIResponse,
+  parseStoryResponse,
   buildExtractResult,
 } from './extract';
 
@@ -79,6 +84,11 @@ export class InstagramExtractor extends BaseExtractor {
       }
 
       logger.info('instagram', 'Starting extraction', { url });
+
+      // Check if this is a story URL
+      if (isStoryUrl(url)) {
+        return await this._extractStory(url, clientCookie, signal, startTime);
+      }
 
       // Extract shortcode from URL
       const shortcode = extractShortcode(url);
@@ -239,6 +249,79 @@ export class InstagramExtractor extends BaseExtractor {
         },
       };
     }
+  }
+
+  /**
+   * Extract story from Instagram
+   * Stories require authentication (cookie)
+   * Note: Always fetches by username since Instagram API requires user ID, not story ID
+   */
+  private async _extractStory(
+    url: string,
+    clientCookie: string | undefined,
+    signal: AbortSignal | undefined,
+    startTime: number
+  ): Promise<InternalExtractResponse> {
+    const username = extractStoryUsername(url);
+    
+    if (!username) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.INVALID_URL,
+          message: 'Could not extract username from story URL',
+        },
+      };
+    }
+
+    logger.debug('instagram', 'Extracting story', { username });
+
+    // Stories always require cookie
+    const cookie = SERVER_COOKIE || clientCookie;
+    if (!cookie) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.LOGIN_REQUIRED,
+          message: 'Instagram Stories require login. Please add your Instagram cookie.',
+        },
+      };
+    }
+
+    // Always fetch by username (Instagram API needs user ID, not story ID)
+    // Try server cookie first, then client cookie
+    let storyResult = await fetchStoryByUsername(username, SERVER_COOKIE || '', signal);
+    
+    if (!storyResult.success && clientCookie && SERVER_COOKIE !== clientCookie) {
+      logger.debug('instagram', 'Server cookie failed, trying client cookie');
+      storyResult = await fetchStoryByUsername(username, clientCookie, signal);
+    }
+
+    if (storyResult.success && storyResult.data) {
+      const parsed = parseStoryResponse(storyResult.data as StoryResponse, '');
+      
+      if (parsed && parsed.items.length > 0) {
+        const result = buildExtractResult(parsed, true);
+        logger.complete('instagram', Date.now() - startTime);
+        return result;
+      }
+    }
+
+    // Return error
+    if (storyResult.error) {
+      return {
+        success: false,
+        error: storyResult.error,
+      };
+    }
+
+    return {
+      success: false,
+      error: {
+        code: ErrorCode.STORY_EXPIRED,
+        message: 'Story not found or has expired',
+      },
+    };
   }
 }
 

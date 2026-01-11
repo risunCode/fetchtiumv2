@@ -152,6 +152,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
     const response: ExtractResult = {
       ...result,
       author: displayAuthor, // Use display name for API response
+      authorUsername: result.author, // Keep username for reference
       meta,
       usedCookie,
     };

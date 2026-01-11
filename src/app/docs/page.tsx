@@ -245,10 +245,61 @@ curl -X POST ${BASE_URL}/api/v1/extract \\
             <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5">
               <div className="flex items-center gap-2 mb-2">
                 <MethodBadge method="GET" />
+                <code className="font-mono text-sm">/api/v1/thumbnail</code>
+              </div>
+              <p className="text-zinc-500 text-sm mb-3">Proxy thumbnails (Instagram)</p>
+              <code className="text-xs text-zinc-600 block">?url=https://cdninstagram.com/...</code>
+            </div>
+
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <MethodBadge method="GET" />
                 <code className="font-mono text-sm">/api/v1/status</code>
               </div>
               <p className="text-zinc-500 text-sm mb-3">Server status & platforms</p>
               <code className="text-xs text-zinc-600 block">Returns supported platforms list</code>
+            </div>
+
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <MethodBadge method="GET" />
+                <code className="font-mono text-sm">/api/health</code>
+              </div>
+              <p className="text-zinc-500 text-sm mb-3">Health check endpoint</p>
+              <code className="text-xs text-zinc-600 block">Returns {"{ ok: true }"}</code>
+            </div>
+          </div>
+
+          {/* Internal Endpoints */}
+          <h3 className="text-lg font-medium mt-8 mb-4 text-zinc-400">Internal Endpoints</h3>
+          <p className="text-zinc-500 text-sm mb-4">Used by the frontend for playback and download. Not intended for direct API usage.</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <MethodBadge method="GET" />
+                <code className="font-mono text-sm">/api/v1/hls-stream</code>
+              </div>
+              <p className="text-zinc-500 text-sm mb-3">Convert HLS/DASH to MP4 via FFmpeg</p>
+              <code className="text-xs text-zinc-600 block">?url=...&type=video&audioUrl=...</code>
+            </div>
+
+            <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <MethodBadge method="GET" />
+                <code className="font-mono text-sm">/api/v1/hls-proxy</code>
+              </div>
+              <p className="text-zinc-500 text-sm mb-3">Proxy HLS manifest & segments (YouTube)</p>
+              <code className="text-xs text-zinc-600 block">?url=...&type=manifest|segment</code>
+            </div>
+
+            <div className="bg-zinc-900/30 border border-zinc-800/50 rounded-xl p-5">
+              <div className="flex items-center gap-2 mb-2">
+                <MethodBadge method="GET" />
+                <code className="font-mono text-sm">/api/v1/events</code>
+              </div>
+              <p className="text-zinc-500 text-sm mb-3">SSE stream for server status</p>
+              <code className="text-xs text-zinc-600 block">Server-Sent Events connection</code>
             </div>
           </div>
         </section>

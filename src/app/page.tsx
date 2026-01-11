@@ -24,6 +24,7 @@ export default function Home() {
   const [playerMime, setPlayerMime] = useState<string | null>(null);
   const [playerThumbnail, setPlayerThumbnail] = useState<string | null>(null);
   const [playerAudioUrl, setPlayerAudioUrl] = useState<string | null>(null);
+  const [playerNeedsProxy, setPlayerNeedsProxy] = useState<boolean>(false);
 
   // Handle extraction
   const handleExtract = useCallback((url: string) => {
@@ -36,12 +37,13 @@ export default function Home() {
   }, []);
 
   // Handle play button click
-  const handlePlay = useCallback((url: string, type: 'video' | 'audio', mime?: string, thumbnail?: string, audioUrl?: string) => {
+  const handlePlay = useCallback((url: string, type: 'video' | 'audio', mime?: string, thumbnail?: string, audioUrl?: string, needsProxy?: boolean) => {
     setPlayerUrl(url);
     setPlayerType(type);
     setPlayerMime(mime || null);
     setPlayerThumbnail(thumbnail || null);
     setPlayerAudioUrl(audioUrl || null);
+    setPlayerNeedsProxy(needsProxy || false);
     setPlayerModalOpen(true);
   }, []);
 
@@ -53,6 +55,7 @@ export default function Home() {
     setPlayerMime(null);
     setPlayerThumbnail(null);
     setPlayerAudioUrl(null);
+    setPlayerNeedsProxy(false);
   }, []);
 
   // Close cookie modal
@@ -227,6 +230,7 @@ export default function Home() {
         mime={playerMime}
         thumbnail={playerThumbnail}
         audioUrl={playerAudioUrl}
+        needsProxy={playerNeedsProxy}
         onClose={handleClosePlayer}
       />
       <CookieModal

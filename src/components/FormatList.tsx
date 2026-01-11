@@ -6,7 +6,7 @@ import { needsMerge, findBestAudio, buildMergeUrl } from '@/lib/utils/merge.help
 
 interface FormatListProps {
   result: ExtractResult;
-  onPlay: (url: string, type: 'video' | 'audio', mime?: string, thumbnail?: string, audioUrl?: string) => void;
+  onPlay: (url: string, type: 'video' | 'audio', mime?: string, thumbnail?: string, audioUrl?: string, needsProxy?: boolean) => void;
 }
 
 /**
@@ -29,15 +29,6 @@ function isHlsOpus(source: MediaSource): boolean {
 }
 
 /**
- * Check if source is YouTube HLS (needs server-side transcoding due to CORS)
- */
-function isYouTubeHls(source: MediaSource): boolean {
-  const isYouTube = source.url?.includes('googlevideo.com') || source.url?.includes('youtube.com');
-  const isHls = source.url?.includes('.m3u8') || source.url?.includes('playlist');
-  return isYouTube && isHls;
-}
-
-/**
  * Check if source is BiliBili DASH segment (needs server-side transcoding)
  */
 function isBiliBiliDash(source: MediaSource): boolean {
@@ -48,15 +39,20 @@ function isBiliBiliDash(source: MediaSource): boolean {
 
 /**
  * Check if source needs HLS stream endpoint (FFmpeg transcoding)
+ * Includes: SoundCloud HLS Opus, BiliBili DASH, YouTube HLS (needsProxy)
  */
 function needsHlsStream(source: MediaSource): boolean {
-  return isHlsOpus(source) || isYouTubeHls(source) || isBiliBiliDash(source);
+  // YouTube HLS with needsProxy flag
+  if (source.needsProxy) return true;
+  
+  return isHlsOpus(source) || isBiliBiliDash(source);
 }
 
 /**
- * Check if source is experimental (HLS, Opus, or DASH segments)
+ * Check if source is experimental (HLS, Opus, DASH segments, or needs proxy)
  */
 function isExperimental(source: MediaSource): boolean {
+  if (source.needsProxy) return true;
   const isOpus = source.mime?.includes('opus') || source.url?.includes('.opus');
   const isHls = source.url?.includes('.m3u8') || source.url?.includes('playlist') || source.mime?.includes('mpegurl');
   const isDash = source.url?.includes('.m4s');
@@ -65,7 +61,7 @@ function isExperimental(source: MediaSource): boolean {
 
 /**
  * Build download URL using hash-first approach
- * For HLS Opus or YouTube HLS, uses hls-stream endpoint for server-side transcoding
+ * For HLS/DASH/needsProxy sources, uses hls-stream endpoint for server-side transcoding
  * @param source - Media source with optional hash
  * @param filename - Filename for download
  * @param mediaType - 'video' or 'audio' for transcoding type
@@ -74,7 +70,7 @@ function isExperimental(source: MediaSource): boolean {
 export function buildDownloadUrl(source: MediaSource, filename: string, mediaType: 'video' | 'audio' = 'audio'): string {
   const params = new URLSearchParams();
   
-  // For HLS/DASH that needs transcoding (but not merge - that's handled separately)
+  // For HLS/DASH/needsProxy that needs transcoding (but not merge - that's handled separately)
   if (needsHlsStream(source)) {
     params.set('url', source.url);
     params.set('type', mediaType);
@@ -110,7 +106,7 @@ interface FormatRowProps {
   item: MediaItem;
   source: MediaSource;
   result: ExtractResult;
-  onPlay: (url: string, type: 'video' | 'audio', mime?: string, thumbnail?: string, audioUrl?: string) => void;
+  onPlay: (url: string, type: 'video' | 'audio', mime?: string, thumbnail?: string, audioUrl?: string, needsProxy?: boolean) => void;
 }
 
 function FormatRow({ item, source, result, onPlay }: FormatRowProps) {
@@ -188,7 +184,8 @@ function FormatRow({ item, source, result, onPlay }: FormatRowProps) {
         }
       }
       
-      onPlay(source.url, item.type, source.mime, item.thumbnail || undefined, audioUrl);
+      // Pass needsProxy flag for YouTube HLS sources
+      onPlay(source.url, item.type, source.mime, item.thumbnail || undefined, audioUrl, source.needsProxy);
     }
   }, [item.type, item.thumbnail, source.url, source.mime, source, result.items, onPlay]);
 

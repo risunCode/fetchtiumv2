@@ -80,7 +80,9 @@ const XSS_PATTERNS: RegExp[] = [
 const PUBLIC_ROUTES = [
   '/api/v1/stream',
   '/api/v1/download',
+  '/api/v1/thumbnail', // Thumbnail proxy for Instagram
   '/api/v1/hls-stream',  // HLS to progressive conversion
+  '/api/v1/hls-proxy',   // HLS proxy for CORS-restricted streams
   '/api/v1/merge',       // Video-audio merge endpoint
   '/api/v1/events',
   '/api/extract',  // Python extractor (internal calls)
@@ -223,7 +225,7 @@ export function middleware(request: NextRequest) {
   
   // Check query params for malicious patterns
   // Skip for streaming endpoints - they have complex URLs that may trigger false positives
-  const isStreamingEndpoint = pathname.includes('/hls-stream') || pathname.includes('/stream') || pathname.includes('/download') || pathname.includes('/merge');
+  const isStreamingEndpoint = pathname.includes('/hls-stream') || pathname.includes('/hls-proxy') || pathname.includes('/stream') || pathname.includes('/download') || pathname.includes('/merge');
   
   if (!isStreamingEndpoint) {
     for (const [key, value] of searchParams.entries()) {
@@ -241,7 +243,7 @@ export function middleware(request: NextRequest) {
       
       // Skip malicious pattern check for known streaming endpoints
       // BiliBili and YouTube URLs have complex query strings that may trigger false positives
-      const isStreamingEndpoint = pathname.includes('/hls-stream') || pathname.includes('/stream') || pathname.includes('/download') || pathname.includes('/merge');
+      const isStreamingEndpoint = pathname.includes('/hls-stream') || pathname.includes('/hls-proxy') || pathname.includes('/stream') || pathname.includes('/download') || pathname.includes('/merge');
       
       if (!isStreamingEndpoint && hasMaliciousPattern(decoded)) {
         return createErrorResponse('INVALID_URL', 'Malicious pattern detected', 400);

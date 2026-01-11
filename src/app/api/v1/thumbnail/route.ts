@@ -3,7 +3,7 @@
  * Proxy thumbnail images (bypass hotlink protection)
  * 
  * Query parameters:
- * - h: string (required) - Hash from extraction result
+ * - url: string (required) - Direct thumbnail URL
  * 
  * Currently supports:
  * - Instagram thumbnails (cdninstagram.com)
@@ -13,7 +13,6 @@
 
 import { NextRequest } from 'next/server';
 import { fetchStream } from '@/lib/core/network/client';
-import { getUrlByHash } from '@/lib/utils/url-store';
 import { logger } from '@/lib/utils/logger';
 import type { Readable } from 'stream';
 
@@ -65,21 +64,12 @@ function nodeStreamToWebStream(nodeStream: Readable): ReadableStream<Uint8Array>
  * GET handler for thumbnail proxy
  */
 export async function GET(request: NextRequest): Promise<Response> {
-  const hashParam = request.nextUrl.searchParams.get('h');
+  const url = request.nextUrl.searchParams.get('url');
 
-  // Validate hash parameter
-  if (!hashParam) {
-    return new Response(JSON.stringify({ error: 'Hash parameter required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  // Lookup URL by hash
-  const url = getUrlByHash(hashParam);
+  // Validate URL parameter
   if (!url) {
-    return new Response(JSON.stringify({ error: 'Invalid or expired hash' }), {
-      status: 404,
+    return new Response(JSON.stringify({ error: 'URL parameter required' }), {
+      status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
   }

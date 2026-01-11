@@ -8,6 +8,9 @@
 import type {
   GraphQLResponse,
   InternalAPIResponse,
+  StoryResponse,
+  StoryReel,
+  StoryItem,
   ShortcodeMedia,
   SidecarEdge,
   APIMediaItem,
@@ -81,19 +84,21 @@ function getBestImageCandidate(candidates: ImageCandidate[]): ImageCandidate | n
 
 /**
  * Parse video versions into MediaSource array
+ * Returns only the best quality video
  */
 function parseVideoSources(versions: VideoVersion[]): MediaSource[] {
   if (!versions || versions.length === 0) return [];
   
-  // Sort by resolution (width) descending
+  // Sort by resolution (width) descending, get best
   const sorted = [...versions].sort((a, b) => b.width - a.width);
+  const best = sorted[0];
   
-  return sorted.map((version, index) => ({
-    quality: index === 0 ? 'hd' : 'sd',
-    url: version.url,
-    resolution: `${version.width}x${version.height}`,
+  return [{
+    quality: best.width >= 720 ? 'hd' : 'sd',
+    url: best.url,
+    resolution: `${best.width}x${best.height}`,
     mime: 'video/mp4',
-  }));
+  }];
 }
 
 /**
@@ -140,7 +145,7 @@ export function parseGraphQLResponse(data: GraphQLResponse): ParsedInstagramResu
   let contentType: 'video' | 'image' | 'carousel' = 'image';
   
   // Handle carousel/sidecar posts
-  if (media.__typename === 'GraphSidecar' && media.edge_sidecar_to_children?.edges) {
+  if ((media.__typename === 'GraphSidecar' || media.__typename === 'XDTGraphSidecar') && media.edge_sidecar_to_children?.edges) {
     contentType = 'carousel';
     const edges = media.edge_sidecar_to_children.edges;
     
@@ -425,4 +430,131 @@ export function buildExtractResult(
   });
   
   return result;
+}
+
+// ============================================================
+// STORY PARSER
+// ============================================================
+
+/**
+ * Parse story response from Instagram Stories API
+ * 
+ * @param data - Story API response
+ * @param targetStoryId - The specific story ID we're looking for (empty = get all)
+ * @returns Parsed result or null if parsing fails
+ */
+export function parseStoryResponse(
+  data: StoryResponse,
+  targetStoryId: string
+): ParsedInstagramResult | null {
+  // Handle both response formats: reels_media (array) or reels (object)
+  let reel: StoryReel | undefined;
+  
+  if (data.reels_media && data.reels_media.length > 0) {
+    reel = data.reels_media[0];
+  } else if (data.reels) {
+    const reelKeys = Object.keys(data.reels);
+    if (reelKeys.length > 0) {
+      reel = data.reels[reelKeys[0]];
+    }
+  }
+  
+  if (!reel || !reel.items || reel.items.length === 0) {
+    logger.warn('instagram-extract', 'No story items in response');
+    return null;
+  }
+
+  const items: MediaItem[] = [];
+  let contentType: 'video' | 'image' | 'carousel' = 'image';
+  let firstItemDate: string | undefined;
+
+  // If targetStoryId is provided, find that specific item
+  // Otherwise, parse ALL items as a carousel
+  const itemsToParse = targetStoryId 
+    ? reel.items.filter(item => item.pk === targetStoryId || item.id === targetStoryId)
+    : reel.items;
+
+  // If specific ID requested but not found, use all items
+  const finalItems = itemsToParse.length > 0 ? itemsToParse : reel.items;
+
+  // Parse each story item
+  for (let i = 0; i < finalItems.length; i++) {
+    const storyItem = finalItems[i];
+    
+    logger.debug('instagram-extract', `Parsing story item ${i}`, {
+      pk: storyItem.pk,
+      media_type: storyItem.media_type,
+      hasVideo: !!storyItem.video_versions,
+      hasImage: !!storyItem.image_versions2,
+    });
+    
+    // Track first item date
+    if (i === 0 && storyItem.taken_at) {
+      firstItemDate = new Date(storyItem.taken_at * 1000).toISOString();
+    }
+
+    if (storyItem.media_type === 2 && storyItem.video_versions) {
+      // Video story
+      const sources = parseVideoSources(storyItem.video_versions);
+      const thumbnail = storyItem.image_versions2?.candidates?.[0]?.url || '';
+
+      items.push({
+        index: i,
+        type: 'video',
+        thumbnail,
+        sources,
+      });
+    } else if (storyItem.image_versions2?.candidates) {
+      // Image story
+      const sources = parseImageSources(storyItem.image_versions2.candidates);
+      const thumbnail = storyItem.image_versions2.candidates[0]?.url || '';
+
+      items.push({
+        index: i,
+        type: 'image',
+        thumbnail,
+        sources,
+      });
+    }
+  }
+
+  logger.debug('instagram-extract', 'Parsed story items', {
+    totalItems: items.length,
+    types: items.map(i => i.type),
+  });
+
+  if (items.length === 0) {
+    logger.warn('instagram-extract', 'Could not parse any story media');
+    return null;
+  }
+
+  // Determine content type
+  if (items.length > 1) {
+    contentType = 'carousel';
+  } else if (items[0].type === 'video') {
+    contentType = 'video';
+  } else {
+    contentType = 'image';
+  }
+
+  // Use first item's date or current date
+  const uploadDate = firstItemDate || new Date().toISOString();
+
+  // Use first item's pk (not id which includes user ID suffix)
+  const firstItem = finalItems[0];
+
+  return {
+    id: firstItem.pk, // Use pk only, not id (which is pk_userId)
+    shortcode: firstItem.pk,
+    author: {
+      username: reel.user.username,
+      fullName: reel.user.full_name || '',
+      avatar: reel.user.profile_pic_url || '',
+    },
+    caption: '', // Stories typically don't have captions
+    contentType,
+    items,
+    stats: {},
+    uploadDate,
+  };
 }

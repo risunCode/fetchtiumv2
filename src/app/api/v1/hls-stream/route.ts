@@ -3,8 +3,10 @@
  * Server-side media stream conversion via FFmpeg
  * 
  * Supports:
- * - HLS playlists (.m3u8) - YouTube, SoundCloud
+ * - HLS playlists (.m3u8) - SoundCloud
  * - DASH segments (.m4s) - BiliBili (video + audio merge)
+ * 
+ * Note: YouTube now uses progressive/DASH formats via /api/v1/stream and /api/v1/merge
  * 
  * Returns a single streamable audio/video file
  * 
@@ -23,7 +25,6 @@ import { isValidUrl as isStoredUrl, getUrlByHash } from '@/lib/utils/url-store';
 import { logger } from '@/lib/utils/logger';
 import { 
   isBiliBiliUrl, 
-  isYouTubeUrl, 
   getPlatformHeaders, 
   buildFFmpegHeadersString,
   COMMON_USER_AGENT 
@@ -116,11 +117,11 @@ export async function GET(request: NextRequest): Promise<Response> {
   // Detect stream type using platform header utilities
   const isHls = url.includes('.m3u8') || url.includes('playlist') || url.includes('/index.m3u8');
   const isBiliBiliDash = url.includes('.m4s') && isBiliBiliUrl(url);
-  const isYouTube = isYouTubeUrl(url);
+  const isYouTubeHls = isHls && (url.includes('googlevideo.com') || url.includes('youtube.com'));
 
   // Validate URL is from previous extraction
-  // Skip validation for YouTube/BiliBili - they have their own expiry mechanism
-  if (!hashParam && !isYouTube && !isBiliBiliDash && !isStoredUrl(url)) {
+  // Skip validation for BiliBili and YouTube - they have their own expiry mechanism
+  if (!hashParam && !isBiliBiliDash && !isYouTubeHls && !isStoredUrl(url)) {
     logger.warn('hls-stream', 'URL not authorized', { url: url.substring(0, 100) });
     return new Response(JSON.stringify({ 
       error: { code: 'UNAUTHORIZED_URL', message: 'URL not authorized' } 
@@ -130,46 +131,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
   }
   
-  // For YouTube HLS, redirect to Python yt-dlp endpoint (more reliable than FFmpeg)
-  if (isYouTube && isHls) {
-    logger.info('hls-stream', 'Redirecting YouTube HLS to yt-dlp endpoint', { url: url.substring(0, 80) });
-    
-    // Build Python endpoint URL
-    const pythonUrl = process.env.NODE_ENV === 'development'
-      ? `http://127.0.0.1:3001/api/yt-stream?url=${encodeURIComponent(url)}`
-      : `/api/yt-stream?url=${encodeURIComponent(url)}`;
-    
-    // In production, proxy to Python endpoint
-    if (process.env.NODE_ENV !== 'development') {
-      const pyResponse = await fetch(`http://127.0.0.1:3001/api/yt-stream?url=${encodeURIComponent(url)}`);
-      
-      if (!pyResponse.ok) {
-        return new Response(JSON.stringify({ 
-          error: { code: 'STREAM_FAILED', message: 'YouTube stream failed' } 
-        }), {
-          status: 502,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-      
-      return new Response(pyResponse.body, {
-        status: 200,
-        headers: {
-          'Content-Type': 'video/mp4',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'no-cache',
-        },
-      });
-    }
-    
-    // In development, redirect
-    return Response.redirect(pythonUrl, 302);
-  }
-  
   // For BiliBili video, check if we have separate audio URL for merging
   const hasSeparateAudio = isBiliBiliDash && audioUrlParam && outputType === 'video';
   
-  logger.info('hls-stream', 'Stream type detection', { isHls, isBiliBiliDash, isYouTube, hasSeparateAudio, urlStart: url.substring(0, 80) });
+  logger.info('hls-stream', 'Stream type detection', { isHls, isBiliBiliDash, isYouTubeHls, hasSeparateAudio, urlStart: url.substring(0, 80) });
   
   if (!isHls && !isBiliBiliDash) {
     logger.warn('hls-stream', 'Unsupported format', { url: url.substring(0, 100) });
@@ -207,7 +172,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       url: url.substring(0, 100), 
       type: outputType,
       isHls,
-      isYouTube,
+      isBiliBiliDash,
     });
 
     // Build FFmpeg args based on source and output type
@@ -274,9 +239,22 @@ export async function GET(request: NextRequest): Promise<Response> {
         contentType = 'audio/mpeg';
       }
     } else if (outputType === 'video') {
-      // YouTube/other HLS video - use platform headers utility
+      // HLS video - use platform headers utility
       const platformHeaders = getPlatformHeaders(url);
       const headersString = buildFFmpegHeadersString(platformHeaders);
+      
+      // For YouTube HLS, route through our proxy to avoid CORS/blocking
+      // FFmpeg will fetch from our proxy which fetches from YouTube
+      let inputUrl = url;
+      if (isYouTubeHls) {
+        // Build proxy URL - use request headers to determine correct protocol/host
+        const host = request.headers.get('host') || request.nextUrl.host;
+        const protocol = request.headers.get('x-forwarded-proto') || 
+                         (host.includes('localhost') ? 'http' : 'https');
+        const proxyBase = `${protocol}://${host}/api/v1/hls-proxy`;
+        inputUrl = `${proxyBase}?url=${encodeURIComponent(url)}&type=manifest`;
+        logger.info('hls-stream', 'Using HLS proxy for YouTube', { proxyUrl: inputUrl.substring(0, 100) });
+      }
       
       ffmpegArgs = [
         '-hide_banner',
@@ -286,8 +264,8 @@ export async function GET(request: NextRequest): Promise<Response> {
         '-reconnect_delay_max', '5',
         '-protocol_whitelist', 'file,http,https,tcp,tls,crypto,hls', // Enable HLS protocol
         '-user_agent', platformHeaders.userAgent,
-        ...(headersString ? ['-headers', headersString] : []),
-        '-i', url,
+        ...(headersString && !isYouTubeHls ? ['-headers', headersString] : []),
+        '-i', inputUrl,
         '-c:v', 'copy',           // Copy video codec (no re-encode)
         '-c:a', 'aac',            // Transcode audio to AAC (widely supported)
         '-b:a', '128k',

@@ -1020,6 +1020,294 @@ def process_audio_formats(
 
 
 # ============================================
+# 9.1 YOUTUBE FORMAT PROCESSING
+# ============================================
+
+def is_hls_format(fmt: dict) -> bool:
+    """
+    Check if format is HLS (should be skipped for YouTube).
+    
+    HLS formats contain .m3u8 URLs or manifest indicators.
+    We skip these because they require complex proxy handling.
+    
+    Requirements: 3.1
+    """
+    url = fmt.get('url', '')
+    protocol = fmt.get('protocol', '')
+    
+    # Check URL for HLS indicators
+    if '.m3u8' in url or '/manifest/' in url or 'index.m3u8' in url:
+        return True
+    
+    # Check protocol field
+    if protocol in ('m3u8', 'm3u8_native', 'hls'):
+        return True
+    
+    return False
+
+
+def is_progressive_format(fmt: dict) -> bool:
+    """
+    Check if format is progressive (has both video and audio).
+    
+    Progressive formats can be played directly without merging.
+    
+    Requirements: 1.1
+    """
+    vcodec = fmt.get('vcodec', 'none')
+    acodec = fmt.get('acodec', 'none')
+    
+    return vcodec != 'none' and acodec != 'none'
+
+
+def process_youtube_formats(
+    formats: list,
+    info: dict = None,
+    max_progressive_height: int = 720,
+    target_heights: list = None,
+    codec_priority: dict = None,
+    include_hls: bool = True,
+) -> tuple[list, list, list]:
+    """
+    Process YouTube formats with progressive format priority.
+    
+    This function prioritizes progressive formats (video+audio combined) over
+    DASH formats (video-only) to avoid complex HLS proxy handling.
+    
+    Priority order:
+    1. Progressive MP4 (video+audio) up to max_progressive_height
+    2. DASH video-only (for higher resolutions or when no progressive available)
+    
+    HLS formats (.m3u8) are collected separately for clients that want them.
+    
+    Args:
+        formats: List of format dicts from yt-dlp
+        info: Optional info dict for filename generation
+        max_progressive_height: Max height for progressive formats (default: 720)
+        target_heights: Target resolutions to keep (default: [1080, 720, 480, 360])
+        codec_priority: Codec preference dict (default: H.264 > VP9 > AV1)
+        include_hls: Whether to include HLS sources in response (default: True)
+        
+    Returns:
+        Tuple of (video_sources, audio_sources, hls_sources) where:
+        - video_sources: List with progressive formats first, then DASH
+        - audio_sources: List of audio-only sources for DASH merge
+        - hls_sources: List of HLS sources (for clients that want them)
+        
+    Requirements: 1.1, 1.2, 2.1, 3.1, 5.1, 5.2
+    """
+    if target_heights is None:
+        target_heights = DEFAULT_TARGET_HEIGHTS
+    if codec_priority is None:
+        codec_priority = DEFAULT_CODEC_PRIORITY
+    if info is None:
+        info = {}
+    
+    progressive_formats = []
+    dash_video_formats = []
+    audio_formats = []
+    hls_formats = []
+    
+    # First pass: categorize formats
+    for fmt in formats:
+        if not fmt.get('url'):
+            continue
+        
+        # Collect HLS formats separately (for clients that want them)
+        if is_hls_format(fmt):
+            if include_hls:
+                hls_formats.append(fmt)
+            continue
+        
+        vcodec = fmt.get('vcodec', 'none')
+        acodec = fmt.get('acodec', 'none')
+        
+        # Audio-only format
+        if vcodec == 'none' and acodec != 'none':
+            audio_formats.append(fmt)
+        # Progressive format (video + audio)
+        elif is_progressive_format(fmt):
+            progressive_formats.append(fmt)
+        # DASH video-only format
+        elif vcodec != 'none':
+            dash_video_formats.append(fmt)
+    
+    video_sources = []
+    seen_heights = set()
+    
+    # Helper to build video source dict
+    def build_source(fmt: dict, has_audio: bool) -> dict:
+        height = fmt.get('height', 0)
+        width = fmt.get('width', 0)
+        vcodec = fmt.get('vcodec', 'none')
+        codec_name = normalize_codec_name(vcodec)
+        
+        quality = fmt.get('format_note') or (f"{height}p" if height else fmt.get('format_id', 'default'))
+        fps = fmt.get('fps')
+        if fps and fps > 30:
+            quality = f"{quality} {fps}fps"
+        
+        ext = fmt.get('ext', 'mp4')
+        filesize = fmt.get('filesize') or fmt.get('filesize_approx')
+        
+        source = {
+            'quality': quality,
+            'url': fmt.get('url'),
+            'resolution': f"{width}x{height}" if width and height else None,
+            'mime': f"video/{ext}",
+            'extension': ext,
+            'filename': generate_filename(info, fmt, 'video') if info else f"video_{quality}.{ext}",
+            'hasAudio': has_audio,
+            'needsMerge': not has_audio,
+            'codec': codec_name if codec_name else None,
+        }
+        
+        if filesize:
+            source['size'] = int(filesize)
+        
+        # Remove None values
+        return {k: v for k, v in source.items() if v is not None}
+    
+    # Step 1: Add progressive formats (up to max_progressive_height)
+    # Sort by height descending, then by codec priority
+    progressive_formats.sort(key=lambda x: (
+        -x.get('height', 0),
+        codec_priority.get(normalize_codec_name(x.get('vcodec', '')), 99)
+    ))
+    
+    for fmt in progressive_formats:
+        height = fmt.get('height', 0)
+        
+        # Skip if above max progressive height
+        if height > max_progressive_height:
+            continue
+        
+        # Skip if we already have this height
+        if height in seen_heights:
+            continue
+        
+        # Only add if height is in target heights (with tolerance)
+        height_match = False
+        for target_h in target_heights:
+            if abs(height - target_h) <= target_h * 0.1:
+                height_match = True
+                break
+        
+        if height_match or height <= max_progressive_height:
+            video_sources.append(build_source(fmt, has_audio=True))
+            seen_heights.add(height)
+    
+    # Step 2: Add DASH formats for higher resolutions or missing heights
+    dash_video_formats.sort(key=lambda x: (
+        -x.get('height', 0),
+        codec_priority.get(normalize_codec_name(x.get('vcodec', '')), 99)
+    ))
+    
+    for fmt in dash_video_formats:
+        height = fmt.get('height', 0)
+        
+        # Skip if we already have this height from progressive
+        if height in seen_heights:
+            continue
+        
+        # Only add if height is in target heights (with tolerance)
+        for target_h in target_heights:
+            if abs(height - target_h) <= target_h * 0.1:
+                video_sources.append(build_source(fmt, has_audio=False))
+                seen_heights.add(height)
+                break
+    
+    # Process audio formats for DASH merge
+    audio_sources_raw = []
+    for fmt in audio_formats:
+        acodec = fmt.get('acodec', 'none')
+        abr = fmt.get('abr', 0)
+        ext = fmt.get('ext', 'm4a')
+        filesize = fmt.get('filesize') or fmt.get('filesize_approx')
+        codec_name = normalize_audio_codec_name(acodec)
+        
+        quality = fmt.get('format_note') or (f"{int(abr)}kbps" if abr else fmt.get('format_id', 'audio'))
+        
+        source = {
+            'quality': quality,
+            'url': fmt.get('url'),
+            'mime': f"audio/{ext}",
+            'extension': ext,
+            'filename': generate_filename(info, fmt, 'audio') if info else f"audio_{quality}.{ext}",
+            'codec': codec_name if codec_name else None,
+            '_bitrate': abr,
+        }
+        
+        if abr:
+            source['bitrate'] = int(abr)
+        if filesize:
+            source['size'] = int(filesize)
+        
+        source = {k: v for k, v in source.items() if v is not None}
+        audio_sources_raw.append(source)
+    
+    # Use shared audio processor to pick best sources
+    audio_sources = process_audio_formats(audio_sources_raw, target_bitrate=128)
+    
+    # Step 3: Build HLS sources (for clients that want them)
+    # Note: HLS requires proxy due to CORS - cannot be played directly in browser
+    hls_sources = []
+    if include_hls and hls_formats:
+        hls_seen_heights = set()
+        
+        # Sort HLS by height descending
+        hls_formats.sort(key=lambda x: -x.get('height', 0))
+        
+        for fmt in hls_formats:
+            height = fmt.get('height', 0)
+            width = fmt.get('width', 0)
+            
+            # Skip if we already have this height
+            if height in hls_seen_heights:
+                continue
+            
+            # Only add if height is in target heights (with tolerance)
+            for target_h in target_heights:
+                if abs(height - target_h) <= target_h * 0.1:
+                    vcodec = fmt.get('vcodec', 'none')
+                    acodec = fmt.get('acodec', 'none')
+                    codec_name = normalize_codec_name(vcodec)
+                    
+                    quality = fmt.get('format_note') or (f"{height}p" if height else fmt.get('format_id', 'default'))
+                    fps = fmt.get('fps')
+                    if fps and fps > 30:
+                        quality = f"{quality} {fps}fps"
+                    
+                    filesize = fmt.get('filesize') or fmt.get('filesize_approx')
+                    has_audio = acodec != 'none'
+                    
+                    hls_source = {
+                        'quality': quality,
+                        'url': fmt.get('url'),
+                        'resolution': f"{width}x{height}" if width and height else None,
+                        'mime': 'video/mp4',  # Output will be MP4 after proxy processing
+                        'extension': 'mp4',
+                        'filename': generate_filename(info, fmt, 'video') if info else f"video_{quality}.mp4",
+                        'format': 'hls',
+                        'hasAudio': has_audio,
+                        'needsMerge': False,  # HLS already has audio
+                        'needsProxy': True,   # Cannot play directly due to CORS
+                        'codec': codec_name if codec_name else None,
+                    }
+                    
+                    if filesize:
+                        hls_source['size'] = int(filesize)
+                    
+                    # Remove None values
+                    hls_source = {k: v for k, v in hls_source.items() if v is not None}
+                    hls_sources.append(hls_source)
+                    hls_seen_heights.add(height)
+                    break
+    
+    return video_sources, audio_sources, hls_sources
+
+
+# ============================================
 # 10. MIME TYPE MAPPING & FILENAME GENERATION
 # ============================================
 
@@ -1247,28 +1535,48 @@ def transform_ytdlp_result(info: dict, original_url: str = None) -> dict:
         
         return sanitize_output(result)
     
-    # Video platforms - use shared format processor
-    # BiliBili uses different target heights for vertical videos
-    if is_bilibili:
+    # Video platforms - use appropriate format processor
+    is_youtube = platform == 'youtube'
+    hls_sources = []  # HLS sources for YouTube (optional for clients)
+    
+    # YouTube: Use YouTube-specific processor (progressive priority, skip HLS)
+    if is_youtube:
+        video_sources, audio_sources, hls_sources = process_youtube_formats(
+            formats,
+            info=info,
+            max_progressive_height=720,  # Prefer progressive up to 720p
+            target_heights=DEFAULT_TARGET_HEIGHTS,
+            codec_priority=DEFAULT_CODEC_PRIORITY,
+            include_hls=True,  # Include HLS for clients that want them
+        )
+    # BiliBili: Use shared processor with custom heights for vertical videos
+    elif is_bilibili:
         # BiliBili often has vertical videos with non-standard heights
         # Use wider tolerance and include more heights
         target_heights = [1080, 1024, 720, 852, 480, 640, 360, 426, 240, 256, 144]
         height_tolerance = 0.15  # 15% tolerance for BiliBili
+        
+        video_sources, audio_sources_raw = process_video_formats(
+            formats,
+            info=info,
+            target_heights=target_heights,
+            codec_priority=DEFAULT_CODEC_PRIORITY,
+            height_tolerance=height_tolerance
+        )
+        audio_sources = process_audio_formats(audio_sources_raw, target_bitrate=128)
+    # Other platforms: Use shared processor with defaults
     else:
         target_heights = DEFAULT_TARGET_HEIGHTS
         height_tolerance = 0.1
-    
-    # Use shared format processor (Requirements 3.5, 6.2)
-    video_sources, audio_sources_raw = process_video_formats(
-        formats,
-        info=info,
-        target_heights=target_heights,
-        codec_priority=DEFAULT_CODEC_PRIORITY,
-        height_tolerance=height_tolerance
-    )
-    
-    # Process audio sources using shared processor
-    audio_sources = process_audio_formats(audio_sources_raw, target_bitrate=128)
+        
+        video_sources, audio_sources_raw = process_video_formats(
+            formats,
+            info=info,
+            target_heights=target_heights,
+            codec_priority=DEFAULT_CODEC_PRIORITY,
+            height_tolerance=height_tolerance
+        )
+        audio_sources = process_audio_formats(audio_sources_raw, target_bitrate=128)
     
     # BiliBili: map heights to standard quality labels
     if is_bilibili:
@@ -1315,10 +1623,24 @@ def transform_ytdlp_result(info: dict, original_url: str = None) -> dict:
         'sources': video_sources,
     })
     
+    # Add HLS sources as separate item for YouTube (for clients that want them)
+    if is_youtube and hls_sources:
+        items.append({
+            'index': 1,
+            'type': 'video',
+            'format': 'hls',
+            'thumbnail': info.get('thumbnail'),
+            'sources': hls_sources,
+        })
+        # Adjust audio index if HLS is present
+        audio_index = 2
+    else:
+        audio_index = 1
+    
     # Add audio-only formats as separate item if available
     if audio_sources:
         items.append({
-            'index': 1,
+            'index': audio_index,
             'type': 'audio',
             'thumbnail': info.get('thumbnail'),
             'sources': audio_sources,
@@ -1687,8 +2009,9 @@ def transform_pinterest_result(results: list, original_url: str = None) -> dict:
     
     Extracts:
     - Description, board name, pinner from gallery-dl metadata
-    - Maps to original resolution image
+    - Maps to original resolution image or video
     - Handles pin.it short URL resolution (gallery-dl handles this automatically)
+    - Supports video pins with MP4 and HLS formats
     
     Requirements: 5.1, 5.2, 5.3
     """
@@ -1730,70 +2053,135 @@ def transform_pinterest_result(results: list, original_url: str = None) -> dict:
         ''
     )
     
-    # Process each image
-    for i, (media_url, metadata) in enumerate(results):
-        # Get extension from metadata or URL
-        ext = metadata.get('extension', '').lower()
-        if not ext:
-            from urllib.parse import urlparse
-            path = urlparse(media_url).path
-            if '.' in path:
-                ext = path.rsplit('.', 1)[-1].lower()
-        
-        # Default to jpg for images
-        if not ext or ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
-            ext = 'jpg'
-        
-        # Get MIME type
-        mime = get_mime_from_extension(ext, 'image')
-        
-        # Generate filename
-        # Format: Author_Description_Index.ext
-        author_safe = sanitize_filename(author or 'Pinterest', max_length=20)
-        desc_safe = sanitize_filename(description[:30] if description else 'pin', max_length=30)
-        
-        if len(results) > 1:
-            filename = f"{author_safe}_{desc_safe}_{i+1}.{ext}"
-        else:
-            filename = f"{author_safe}_{desc_safe}.{ext}"
-        
-        source = {
-            'quality': 'original',
-            'url': media_url,
-            'mime': mime,
-            'extension': ext,
-            'filename': filename,
-        }
-        
-        # Add filesize if available
-        filesize = metadata.get('filesize') or metadata.get('size')
-        if filesize:
-            source['size'] = int(filesize)
-        
-        # Extract thumbnail from Pinterest metadata
-        # Pinterest provides: image_medium_url or images dict with various sizes
-        thumbnail = None
-        if metadata.get('image_medium_url'):
-            thumbnail = metadata.get('image_medium_url')
-        elif metadata.get('images'):
-            images = metadata.get('images', {})
-            # Prefer 236x size for thumbnail (good balance of quality/size)
-            if '236x' in images:
-                thumbnail = images['236x'].get('url')
-            elif '170x' in images:
-                thumbnail = images['170x'].get('url')
-            elif '136x136' in images:
-                thumbnail = images['136x136'].get('url')
-        
-        items.append({
-            'index': i,
-            'type': 'image',
-            'thumbnail': thumbnail,
-            'sources': [source],
-        })
+    # Check if this is a video pin
+    videos_data = meta.get('videos')
+    is_video_pin = videos_data and videos_data.get('video_list')
     
-    # Determine content type based on number of items
-    content_type = 'gallery' if len(items) > 1 else 'image'
+    if is_video_pin:
+        # Handle video pin
+        video_list = videos_data.get('video_list', {})
+        sources = []
+        thumbnail = None
+        
+        # Prefer MP4 over HLS for direct playback
+        # V_720P is direct MP4, V_HLSV4 has fallback MP4
+        if 'V_720P' in video_list:
+            v = video_list['V_720P']
+            thumbnail = v.get('thumbnail')
+            sources.append({
+                'quality': 'hd',
+                'url': v.get('url'),
+                'mime': 'video/mp4',
+                'extension': 'mp4',
+                'resolution': f"{v.get('width', '')}x{v.get('height', '')}",
+            })
+        
+        # Add HLS as alternative (with needsProxy for CORS)
+        if 'V_HLSV4' in video_list:
+            v = video_list['V_HLSV4']
+            if not thumbnail:
+                thumbnail = v.get('thumbnail')
+            # Check for MP4 fallback first
+            fallback = v.get('_fallback', [])
+            if fallback:
+                sources.append({
+                    'quality': 'sd',
+                    'url': fallback[0],
+                    'mime': 'video/mp4',
+                    'extension': 'mp4',
+                    'resolution': f"{v.get('width', '')}x{v.get('height', '')}",
+                })
+        
+        # If no MP4 sources found, use HLS
+        if not sources and 'V_HLSV4' in video_list:
+            v = video_list['V_HLSV4']
+            sources.append({
+                'quality': 'hd',
+                'url': v.get('url'),
+                'mime': 'application/x-mpegURL',
+                'extension': 'm3u8',
+                'resolution': f"{v.get('width', '')}x{v.get('height', '')}",
+                'needsProxy': True,
+            })
+        
+        if sources:
+            items.append({
+                'index': 0,
+                'type': 'video',
+                'thumbnail': thumbnail,
+                'sources': sources,
+            })
+            content_type = 'video'
+        else:
+            content_type = 'image'
+    else:
+        content_type = 'image'
+    
+    # Process images if no video or as fallback
+    if not items:
+        for i, (media_url, metadata) in enumerate(results):
+            # Get extension from metadata or URL
+            ext = metadata.get('extension', '').lower()
+            if not ext:
+                from urllib.parse import urlparse
+                path = urlparse(media_url).path
+                if '.' in path:
+                    ext = path.rsplit('.', 1)[-1].lower()
+            
+            # Default to jpg for images
+            if not ext or ext not in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+                ext = 'jpg'
+            
+            # Get MIME type
+            mime = get_mime_from_extension(ext, 'image')
+            
+            # Generate filename
+            # Format: Author_Description_Index.ext
+            author_safe = sanitize_filename(author or 'Pinterest', max_length=20)
+            desc_safe = sanitize_filename(description[:30] if description else 'pin', max_length=30)
+            
+            if len(results) > 1:
+                filename = f"{author_safe}_{desc_safe}_{i+1}.{ext}"
+            else:
+                filename = f"{author_safe}_{desc_safe}.{ext}"
+            
+            source = {
+                'quality': 'original',
+                'url': media_url,
+                'mime': mime,
+                'extension': ext,
+                'filename': filename,
+            }
+            
+            # Add filesize if available
+            filesize = metadata.get('filesize') or metadata.get('size')
+            if filesize:
+                source['size'] = int(filesize)
+            
+            # Extract thumbnail from Pinterest metadata
+            # Pinterest provides: image_medium_url or images dict with various sizes
+            thumbnail = None
+            if metadata.get('image_medium_url'):
+                thumbnail = metadata.get('image_medium_url')
+            elif metadata.get('images'):
+                images = metadata.get('images', {})
+                # Prefer 236x size for thumbnail (good balance of quality/size)
+                if '236x' in images:
+                    thumbnail = images['236x'].get('url')
+                elif '170x' in images:
+                    thumbnail = images['170x'].get('url')
+                elif '136x136' in images:
+                    thumbnail = images['136x136'].get('url')
+            
+            items.append({
+                'index': i,
+                'type': 'image',
+                'thumbnail': thumbnail,
+                'sources': [source],
+            })
+        
+        # Determine content type based on number of items
+        content_type = 'gallery' if len(items) > 1 else 'image'
     
     # Get pin ID
     pin_id = (
@@ -2062,126 +2450,103 @@ def method_not_allowed(e):
 
 
 # ============================================
-# 13. YOUTUBE STREAM ENDPOINT
+# 13. YOUTUBE HLS PROXY
 # ============================================
 
 @app.route('/api/yt-stream', methods=['GET'])
 def yt_stream():
     """
-    Stream YouTube video via yt-dlp.
-    Uses yt-dlp to get direct video URL and streams it.
+    Proxy YouTube HLS playlist and rewrite chunk URLs.
+    This allows browser to play HLS via our proxy (bypassing CORS).
     
     Query params:
-    - url: YouTube video URL or HLS playlist URL
-    - quality: 1080, 720, 480, 360 (default: best available)
+    - url: YouTube HLS playlist URL (.m3u8)
+    - chunk: If present, proxy a chunk URL directly
     """
-    from flask import Response, stream_with_context
-    import subprocess
+    from flask import Response
     import requests
     
     url = request.args.get('url')
-    quality = request.args.get('quality', 'best')
+    is_chunk = request.args.get('chunk') == '1'
     
     if not url:
         return jsonify({'error': 'URL required'}), 400
     
-    # Validate URL is YouTube
-    if not any(p in url for p in ['youtube.com', 'youtu.be', 'googlevideo.com']):
-        return jsonify({'error': 'Only YouTube URLs supported'}), 400
+    headers = {
+        'User-Agent': DEFAULT_USER_AGENT,
+        'Referer': 'https://www.youtube.com/',
+        'Origin': 'https://www.youtube.com',
+        'Accept': '*/*',
+    }
     
     try:
-        # If it's already a direct googlevideo URL, stream it directly
-        if 'googlevideo.com' in url:
-            headers = {
-                'User-Agent': DEFAULT_USER_AGENT,
-                'Referer': 'https://www.youtube.com/',
-                'Origin': 'https://www.youtube.com',
-            }
+        if is_chunk:
+            # Proxy chunk directly (video/audio segment)
+            resp = requests.get(url, headers=headers, stream=True, timeout=30)
             
-            # For HLS, use yt-dlp to download and pipe
-            if '.m3u8' in url or 'playlist' in url:
-                # Use yt-dlp to download HLS and output to stdout
-                cmd = [
-                    'yt-dlp',
-                    '--quiet',
-                    '--no-warnings', 
-                    '-f', 'best',
-                    '-o', '-',  # Output to stdout
-                    url
-                ]
-                
-                process = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
-                )
-                
-                def generate():
-                    while True:
-                        chunk = process.stdout.read(8192)
-                        if not chunk:
-                            break
-                        yield chunk
-                    process.wait()
-                
-                return Response(
-                    stream_with_context(generate()),
-                    mimetype='video/mp4',
-                    headers={
-                        'Content-Disposition': 'inline',
-                        'Access-Control-Allow-Origin': '*',
-                    }
-                )
+            def generate():
+                for chunk in resp.iter_content(chunk_size=65536):
+                    yield chunk
+            
+            return Response(
+                generate(),
+                mimetype=resp.headers.get('Content-Type', 'video/mp2t'),
+                headers={
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'no-cache',
+                }
+            )
+        
+        # Fetch HLS playlist
+        resp = requests.get(url, headers=headers, timeout=30)
+        
+        if resp.status_code != 200:
+            return jsonify({'error': f'Failed to fetch playlist: {resp.status_code}'}), 502
+        
+        content = resp.text
+        
+        # Rewrite URLs in playlist to go through our proxy
+        # HLS playlists contain relative or absolute URLs to chunks
+        lines = content.split('\n')
+        rewritten = []
+        
+        base_url = url.rsplit('/', 1)[0] + '/'
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                rewritten.append('')
+                continue
+            
+            # Skip comments/tags that aren't URLs
+            if line.startswith('#'):
+                rewritten.append(line)
+                continue
+            
+            # This is a URL line - rewrite it
+            if line.startswith('http'):
+                chunk_url = line
             else:
-                # Direct video URL - proxy it
-                resp = requests.get(url, headers=headers, stream=True, timeout=30)
-                
-                def generate():
-                    for chunk in resp.iter_content(chunk_size=8192):
-                        yield chunk
-                
-                return Response(
-                    stream_with_context(generate()),
-                    mimetype=resp.headers.get('Content-Type', 'video/mp4'),
-                    headers={
-                        'Content-Disposition': 'inline',
-                        'Access-Control-Allow-Origin': '*',
-                    }
-                )
+                # Relative URL
+                chunk_url = base_url + line
+            
+            # Rewrite to go through our proxy
+            proxied_url = f'/api/yt-stream?url={requests.utils.quote(chunk_url, safe="")}&chunk=1'
+            rewritten.append(proxied_url)
         
-        # For youtube.com URLs, extract and stream best format
-        cmd = [
-            'yt-dlp',
-            '--quiet',
-            '--no-warnings',
-            '-f', f'best[height<={quality}]' if quality != 'best' else 'best',
-            '-o', '-',
-            url
-        ]
-        
-        process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        
-        def generate():
-            while True:
-                chunk = process.stdout.read(8192)
-                if not chunk:
-                    break
-                yield chunk
-            process.wait()
+        rewritten_content = '\n'.join(rewritten)
         
         return Response(
-            stream_with_context(generate()),
-            mimetype='video/mp4',
+            rewritten_content,
+            mimetype='application/vnd.apple.mpegurl',
             headers={
-                'Content-Disposition': 'inline',
                 'Access-Control-Allow-Origin': '*',
+                'Cache-Control': 'no-cache',
             }
         )
         
+    except requests.Timeout:
+        return jsonify({'error': 'Request timeout'}), 504
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -4,6 +4,49 @@ All notable changes to FetchtiumV2.
 
 ---
 
+## [1.4.0] - 2026-01-11 — Twitter, Instagram Stories, Pinterest Video, YouTube HLS
+
+### 🚀 What's New
+
+- **Twitter/X Cookie Support** - Fixed Netscape cookie format parsing with `netscapeToCookieHeader()` converter
+- **Twitter TweetWithVisibilityResults** - Handle GraphQL wrapper for tweets with visibility restrictions
+- **Instagram Stories** - Full support via Internal API, fetches all story items as carousel
+- **Instagram Reels URL** - Support `/reels/` (plural) in addition to `/reel/`
+- **Pinterest Video** - Extract MP4 sources from video pins (V_720P, V_HLSV4 fallback)
+- **YouTube HLS Proxy** - True streaming playback via HLS.js instead of full download
+- **YouTube HLS Download** - FFmpeg routes through proxy for proper segment fetching
+
+### 🔧 Technical Changes
+
+- **New Endpoint** - `/api/v1/hls-proxy` proxies HLS manifest and segments on-demand
+- **Thumbnail Endpoint** - Changed from hash-based (`?h=`) to direct URL (`?url=`) for easier API usage
+- **CookieModal** - Added `netscapeToCookieHeader()` to convert Netscape format to HTTP Cookie header
+- **Twitter extract.ts** - Unwrap `TweetWithVisibilityResults` to get actual tweet from `result.tweet`
+- **Instagram scanner.ts** - Added `fetchStory()`, `fetchStoryByUsername()` functions
+- **Instagram extract.ts** - Added `parseStoryResponse()`, handle `reels[userId]` response structure
+- **Instagram patterns** - Added `XDTGraphSidecar`, `XDTGraphImage`, `XDTGraphVideo` typename checks
+- **api/extract.py** - `transform_pinterest_result()` handles video pins with `contentType: 'video'`
+- **PlayerModal** - Split `needsHlsStream` into `needsHlsTranscode` (Opus) and `needsHlsProxy` (YouTube)
+- **hls-stream route** - Detects YouTube HLS and routes through proxy for FFmpeg download
+- **middleware.ts** - Added `/api/v1/hls-proxy` to public routes and streaming endpoint checks
+
+### 🐛 Fixes
+
+- **Twitter Cookies** - Fixed cookie parsing not working with Netscape export format
+- **Twitter Visibility** - Fixed extraction failing on tweets wrapped in TweetWithVisibilityResults
+- **Instagram Stories** - Fixed "reels_media[0] undefined" error - API returns `reels[userId]` not `reels_media`
+- **Instagram Carousel** - Fixed typename check missing XDT-prefixed types from Internal API
+- **YouTube HLS Play** - Fixed video downloading entire stream before playing (now true streaming)
+- **YouTube HLS Download** - Fixed 403 errors by adding `Sec-Fetch-*` headers to proxy requests
+
+### 📦 New Files
+
+```
+src/app/api/v1/hls-proxy/route.ts  # HLS proxy for CORS-restricted streams
+```
+
+---
+
 ## [1.3.0] - 2026-01-11 — Extract.py Cleanup + API Docs + UI Polish
 
 ### 🚀 What's New

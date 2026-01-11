@@ -22,21 +22,21 @@ import { ErrorCode } from '@/lib/utils/error.utils';
  */
 export const URL_PATTERNS: RegExp[] = [
   /(?:www\.)?instagram\.com\/p\/([\w-]+)/i,
-  /(?:www\.)?instagram\.com\/reel\/([\w-]+)/i,
+  /(?:www\.)?instagram\.com\/reels?\/([\w-]+)/i,  // /reel/ or /reels/
   /(?:www\.)?instagram\.com\/tv\/([\w-]+)/i,
-  /(?:www\.)?instagram\.com\/stories\/[\w.-]+\/([\d]+)/i,
+  /(?:www\.)?instagram\.com\/stories\/[\w.-]+(?:\/[\d]+)?/i,  // stories with optional ID
   /instagr\.am\/p\/([\w-]+)/i,
 ];
 
 /**
  * Pattern to extract shortcode from Instagram URL
  */
-export const SHORTCODE_PATTERN = /(?:instagram\.com|instagr\.am)\/(?:p|reel|tv)\/([\w-]+)/i;
+export const SHORTCODE_PATTERN = /(?:instagram\.com|instagr\.am)\/(?:p|reels?|tv)\/([\w-]+)/i;
 
 /**
- * Pattern to extract story ID
+ * Pattern to extract story ID (optional)
  */
-export const STORY_PATTERN = /instagram\.com\/stories\/[\w.-]+\/(\d+)/i;
+export const STORY_PATTERN = /instagram\.com\/stories\/([\w.-]+)(?:\/(\d+))?/i;
 
 // ============================================================
 // TYPE DEFINITIONS
@@ -59,7 +59,7 @@ export interface GraphQLResponse {
 export interface ShortcodeMedia {
   id: string;
   shortcode: string;
-  __typename: 'GraphImage' | 'GraphVideo' | 'GraphSidecar';
+  __typename: 'GraphImage' | 'GraphVideo' | 'GraphSidecar' | 'XDTGraphImage' | 'XDTGraphVideo' | 'XDTGraphSidecar';
   display_url: string;
   display_resources?: DisplayResource[];
   video_url?: string;
@@ -211,12 +211,53 @@ export interface CarouselItem {
  */
 export interface ScanResult {
   success: boolean;
-  data?: GraphQLResponse | InternalAPIResponse;
-  source?: 'graphql' | 'api';
+  data?: GraphQLResponse | InternalAPIResponse | StoryResponse;
+  source?: 'graphql' | 'api' | 'story';
   error?: {
     code: string;
     message: string;
   };
+}
+
+/**
+ * Story response from Instagram API
+ */
+export interface StoryResponse {
+  reels_media?: StoryReel[];
+  reels?: Record<string, StoryReel>;
+  status: string;
+}
+
+/**
+ * Story reel containing story items
+ */
+export interface StoryReel {
+  id: string;
+  user: {
+    pk: string;
+    username: string;
+    full_name?: string;
+    profile_pic_url?: string;
+  };
+  items: StoryItem[];
+}
+
+/**
+ * Individual story item
+ */
+export interface StoryItem {
+  id: string;
+  pk: string;
+  media_type: 1 | 2; // 1 = image, 2 = video
+  taken_at: number;
+  video_versions?: VideoVersion[];
+  image_versions2?: {
+    candidates: ImageCandidate[];
+  };
+  original_width?: number;
+  original_height?: number;
+  video_duration?: number;
+  has_audio?: boolean;
 }
 
 // ============================================================
@@ -232,6 +273,11 @@ const GRAPHQL_API = 'https://www.instagram.com/graphql/query';
  * Instagram Internal API base
  */
 const INTERNAL_API = 'https://i.instagram.com/api/v1';
+
+/**
+ * Instagram Stories API endpoint
+ */
+const STORIES_API = 'https://i.instagram.com/api/v1/feed/reels_media';
 
 /**
  * GraphQL document ID for media query
@@ -317,7 +363,14 @@ export function matchUrl(url: string): boolean {
 }
 
 /**
- * Extract shortcode from Instagram URL
+ * Check if URL is a story URL
+ */
+export function isStoryUrl(url: string): boolean {
+  return /instagram\.com\/stories\/[\w.-]+/i.test(url);
+}
+
+/**
+ * Extract shortcode from Instagram URL (posts, reels, tv only)
  */
 export function extractShortcode(url: string): string | null {
   const match = url.match(SHORTCODE_PATTERN);
@@ -325,11 +378,19 @@ export function extractShortcode(url: string): string | null {
 }
 
 /**
- * Extract story ID from Instagram URL
+ * Extract story ID from Instagram URL (optional - may be null for /stories/username)
  */
 export function extractStoryId(url: string): string | null {
   const match = url.match(STORY_PATTERN);
-  return match ? match[1] : null;
+  return match ? match[2] || null : null; // match[2] is the optional story ID
+}
+
+/**
+ * Extract username from story URL
+ */
+export function extractStoryUsername(url: string): string | null {
+  const match = url.match(STORY_PATTERN);
+  return match ? match[1] : null; // match[1] is the username
 }
 
 /**
@@ -650,6 +711,288 @@ export async function fetchInternalAPI(
       error: {
         code: ErrorCode.EXTRACTION_FAILED,
         message: `Failed to fetch from Internal API: ${message}`,
+      },
+    };
+  }
+}
+
+/**
+ * Fetch story using Instagram Stories API (requires cookie)
+ * 
+ * @param storyId - Instagram story media ID
+ * @param cookie - Instagram cookie string
+ * @param signal - Optional abort signal
+ * @returns Scan result with story data or error
+ */
+export async function fetchStory(
+  storyId: string,
+  cookie: string,
+  signal?: AbortSignal
+): Promise<ScanResult> {
+  // Extract CSRF token
+  const csrfToken = extractCsrfToken(cookie);
+  if (!csrfToken) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCode.LOGIN_REQUIRED,
+        message: 'Invalid cookie: missing csrftoken',
+      },
+    };
+  }
+  
+  // Stories API expects reel_ids parameter
+  const url = `${STORIES_API}/?reel_ids=${storyId}`;
+  
+  try {
+    logger.debug('instagram-scanner', 'Fetching from Stories API', { storyId });
+    
+    const response = await request(url, {
+      method: 'GET',
+      headers: {
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': MOBILE_USER_AGENT,
+        'X-IG-App-ID': '936619743392459',
+        'X-ASBD-ID': '129477',
+        'X-CSRFToken': csrfToken,
+        'X-IG-WWW-Claim': 'hmac.AR3W0DThY2Mu5Fag4sW5u3RhaR3qhFD_5wvYbOJOD9qaPjIf',
+        'Cookie': cookie,
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+      },
+      headersTimeout: 15000,
+      bodyTimeout: 15000,
+      signal,
+    });
+    
+    const { statusCode, body } = response;
+    const text = await body.text();
+    
+    // Parse response
+    let json: StoryResponse;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      logger.error('instagram-scanner', 'Failed to parse Stories API response');
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.EXTRACTION_FAILED,
+          message: 'Invalid response from Instagram Stories API',
+        },
+      };
+    }
+    
+    // Check for errors
+    if (statusCode === 401 || statusCode === 403) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.LOGIN_REQUIRED,
+          message: 'Cookie expired or invalid',
+        },
+      };
+    }
+    
+    logger.debug('instagram-scanner', 'Stories API raw response', { 
+      statusCode, 
+      status: json.status,
+      hasReelsMedia: !!json.reels_media,
+      hasReels: !!json.reels,
+      reelsMediaLength: json.reels_media?.length,
+      reelsKeys: json.reels ? Object.keys(json.reels) : [],
+      rawKeys: Object.keys(json),
+    });
+    
+    if (statusCode !== 200 || json.status !== 'ok') {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.EXTRACTION_FAILED,
+          message: 'Failed to fetch story',
+        },
+      };
+    }
+    
+    // Handle both response formats: reels_media (array) or reels (object)
+    let reel: StoryReel | undefined;
+    
+    if (json.reels_media && json.reels_media.length > 0) {
+      reel = json.reels_media[0];
+    } else if (json.reels) {
+      // reels is an object keyed by user ID
+      const reelKeys = Object.keys(json.reels);
+      if (reelKeys.length > 0) {
+        reel = json.reels[reelKeys[0]];
+      }
+    }
+    
+    if (!reel) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.STORY_EXPIRED,
+          message: 'Story not found or has expired',
+        },
+      };
+    }
+    
+    if (!reel.items || reel.items.length === 0) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.STORY_EXPIRED,
+          message: 'Story has no media items',
+        },
+      };
+    }
+    
+    logger.debug('instagram-scanner', 'Stories API fetch successful', {
+      storyId,
+      username: reel.user?.username,
+      itemCount: reel.items.length,
+    });
+    
+    return { success: true, data: json, source: 'story' };
+    
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    
+    if (message.includes('abort') || message.includes('AbortError')) {
+      return {
+        success: false,
+        error: { code: ErrorCode.TIMEOUT, message: 'Request was aborted' },
+      };
+    }
+    
+    logger.error('instagram-scanner', 'Stories API fetch failed', error as Error);
+    return {
+      success: false,
+      error: {
+        code: ErrorCode.EXTRACTION_FAILED,
+        message: `Failed to fetch from Stories API: ${message}`,
+      },
+    };
+  }
+}
+
+/**
+ * Fetch stories by username using Instagram API (requires cookie)
+ * 
+ * @param username - Instagram username
+ * @param cookie - Instagram cookie string
+ * @param signal - Optional abort signal
+ * @returns Scan result with story data or error
+ */
+export async function fetchStoryByUsername(
+  username: string,
+  cookie: string,
+  signal?: AbortSignal
+): Promise<ScanResult> {
+  // Extract CSRF token
+  const csrfToken = extractCsrfToken(cookie);
+  if (!csrfToken) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCode.LOGIN_REQUIRED,
+        message: 'Invalid cookie: missing csrftoken',
+      },
+    };
+  }
+  
+  // First, get user ID from username
+  const userInfoUrl = `${INTERNAL_API}/users/web_profile_info/?username=${username}`;
+  
+  try {
+    logger.debug('instagram-scanner', 'Fetching user info for stories', { username });
+    
+    const userResponse = await request(userInfoUrl, {
+      method: 'GET',
+      headers: {
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'User-Agent': MOBILE_USER_AGENT,
+        'X-IG-App-ID': '936619743392459',
+        'X-ASBD-ID': '129477',
+        'X-CSRFToken': csrfToken,
+        'X-IG-WWW-Claim': 'hmac.AR3W0DThY2Mu5Fag4sW5u3RhaR3qhFD_5wvYbOJOD9qaPjIf',
+        'Cookie': cookie,
+        'Sec-Fetch-Dest': 'empty',
+        'Sec-Fetch-Mode': 'cors',
+        'Sec-Fetch-Site': 'same-site',
+      },
+      headersTimeout: 15000,
+      bodyTimeout: 15000,
+      signal,
+    });
+    
+    const userText = await userResponse.body.text();
+    
+    if (userResponse.statusCode === 401 || userResponse.statusCode === 403) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.LOGIN_REQUIRED,
+          message: 'Cookie expired or invalid',
+        },
+      };
+    }
+    
+    let userData;
+    try {
+      userData = JSON.parse(userText);
+    } catch {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.EXTRACTION_FAILED,
+          message: 'Failed to parse user info response',
+        },
+      };
+    }
+    
+    logger.debug('instagram-scanner', 'User info response', { 
+      statusCode: userResponse.statusCode,
+      hasData: !!userData?.data,
+      hasUser: !!userData?.data?.user,
+      rawKeys: Object.keys(userData || {}),
+    });
+    
+    const userId = userData?.data?.user?.id;
+    if (!userId) {
+      return {
+        success: false,
+        error: {
+          code: ErrorCode.DELETED_CONTENT,
+          message: 'User not found',
+        },
+      };
+    }
+    
+    logger.debug('instagram-scanner', 'Got user ID', { username, userId });
+    
+    // Now fetch stories using user ID
+    return await fetchStory(userId, cookie, signal);
+    
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    
+    if (message.includes('abort') || message.includes('AbortError')) {
+      return {
+        success: false,
+        error: { code: ErrorCode.TIMEOUT, message: 'Request was aborted' },
+      };
+    }
+    
+    logger.error('instagram-scanner', 'User info fetch failed', error as Error);
+    return {
+      success: false,
+      error: {
+        code: ErrorCode.EXTRACTION_FAILED,
+        message: `Failed to fetch user info: ${message}`,
       },
     };
   }

@@ -261,17 +261,27 @@ export class FacebookExtractor extends BaseExtractor {
     const hasMediaPatterns = html.includes('browser_native') || 
                             html.includes('all_subattachments') || 
                             html.includes('viewer_image') || 
-                            html.includes('photo_image');
+                            html.includes('photo_image') ||
+                            html.includes('playable_url') ||
+                            html.includes('progressive_url');
     
     // Check for login page - but only if we're sure it's a login redirect
     // Some public posts may have login_form in sidebar but still have media
+    // Also check for redirect to login page (small HTML with login form)
     const hasLoginPage = html.includes('login_form') || html.includes('Log in to Facebook');
+    const isLoginRedirect = html.includes('/login/') || html.includes('login.php');
+    const isSmallPage = html.length < 100000; // Login redirects are usually small
     
-    if (!hasMediaPatterns && html.length < 500000 && hasLoginPage) {
+    // Only treat as login required if:
+    // 1. No media patterns found AND
+    // 2. Has login page indicators AND
+    // 3. Either small page (redirect) or explicit login redirect
+    if (!hasMediaPatterns && hasLoginPage && (isSmallPage || isLoginRedirect)) {
       logger.warn('facebook', 'Login page detected', { 
         hasMediaPatterns, 
         htmlLength: html.length,
         hasLoginForm: html.includes('login_form'),
+        isLoginRedirect,
         cookieSource 
       });
       return buildErrorResult(ErrorCode.LOGIN_REQUIRED, 'This content requires login');

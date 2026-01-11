@@ -13,6 +13,8 @@ interface PlayerModalProps {
   thumbnail?: string | null;
   /** Separate audio URL for video-only streams (YouTube, BiliBili) */
   audioUrl?: string | null;
+  /** Whether the URL needs proxy (YouTube HLS) */
+  needsProxy?: boolean;
   onClose: () => void;
 }
 
@@ -48,7 +50,7 @@ function needsMergeForPlayback(url: string | null, audioUrl: string | null | und
   return false;
 }
 
-export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, onClose }: PlayerModalProps) {
+export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, needsProxy, onClose }: PlayerModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -59,32 +61,37 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, onCl
   // Determine stream URL based on content type and platform
   const isOpus = url?.includes('.opus') || mime?.includes('opus');
   const isHlsUrl = isHlsFormat(url);
-  const isYouTube = url ? isYouTubeUrl(url) : false;
-  const isYouTubeHls = isYouTube && isHlsUrl;
   
   // Check if we need merge endpoint for video+audio playback
   const useMergeEndpoint = type === 'video' && needsMergeForPlayback(url, audioUrl);
   
-  // For HLS Opus or YouTube HLS (without merge), use hls-stream endpoint
-  // YouTube HLS cannot be played directly due to CORS restrictions
-  const needsHlsStream = !useMergeEndpoint && ((isHlsUrl && isOpus) || isYouTubeHls);
+  // HLS stream via FFmpeg needed for:
+  // - SoundCloud HLS Opus (convert to MP3) - needs transcoding
+  // Note: YouTube HLS with needsProxy now uses hls-proxy for true streaming
+  const needsHlsTranscode = !useMergeEndpoint && isHlsUrl && isOpus;
+  
+  // HLS proxy needed for CORS-restricted HLS (YouTube)
+  // This allows true streaming via HLS.js instead of full download
+  const needsHlsProxy = !useMergeEndpoint && needsProxy && isHlsUrl && !isOpus;
   
   // Build stream URL
   const streamUrl = url 
     ? useMergeEndpoint && audioUrl
       ? buildMergeUrl({ videoUrl: url, audioUrl })
-      : needsHlsStream
+      : needsHlsTranscode
         ? `/api/v1/hls-stream?url=${encodeURIComponent(url)}&type=${type}`
-        : `/api/v1/stream?url=${encodeURIComponent(url)}`
+        : needsHlsProxy
+          ? `/api/v1/hls-proxy?url=${encodeURIComponent(url)}&type=manifest`
+          : `/api/v1/stream?url=${encodeURIComponent(url)}`
     : '';
 
-  // Check if URL is HLS that can be played directly via HLS.js
-  // (not Opus, not YouTube due to CORS, and is HLS format)
-  const isHls = !isOpus && !isYouTube && (
+  // Check if URL is HLS that can be played via HLS.js
+  // Includes: direct HLS URLs, or proxied HLS (needsProxy)
+  const isHls = !isOpus && (
     mime?.includes('mpegurl') || 
     mime?.includes('m3u8') || 
-    url?.includes('.m3u8') || 
-    url?.includes('playlist')
+    url?.includes('.m3u8') ||
+    needsHlsProxy  // Proxied HLS should also use HLS.js
   );
 
   // Cleanup HLS instance
@@ -199,10 +206,10 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, onCl
     }
 
     // Progressive streams (merged video+audio, or regular streams)
-    // Show loading status for merge endpoint or HLS stream (FFmpeg processing)
+    // Show loading status for merge endpoint or HLS transcode (FFmpeg processing)
     if (useMergeEndpoint) {
       setLoadingStatus('Merging video and audio... please wait');
-    } else if (needsHlsStream) {
+    } else if (needsHlsTranscode) {
       setLoadingStatus('Processing stream... please wait');
     }
     
@@ -219,7 +226,7 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, onCl
     return () => {
       mediaElement.removeEventListener('playing', handlePlaying);
     };
-  }, [isOpen, streamUrl, type, isHls, useMergeEndpoint, needsHlsStream, cleanupHls]);
+  }, [isOpen, streamUrl, type, isHls, useMergeEndpoint, needsHlsTranscode, cleanupHls]);
 
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {
     if (e.target === e.currentTarget) onClose();

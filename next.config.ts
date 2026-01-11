@@ -107,6 +107,8 @@ const nextConfig: NextConfig = {
         source: '/api/health',
         destination: `${pythonApiUrl}/api/health`,
       },
+      // Note: /api/yt-stream removed - YouTube now uses progressive/DASH formats
+      // via /api/v1/stream and /api/v1/merge endpoints
     ];
   },
 

@@ -361,7 +361,16 @@ export function parseSyndication(data: SyndicationResponse): ParsedTwitterResult
  * Parse GraphQL API response
  */
 export function parseGraphQL(data: GraphQLResponse): ParsedTwitterResult | null {
-  const result = data.data?.tweetResult?.result;
+  let result = data.data?.tweetResult?.result;
+  
+  // Handle TweetWithVisibilityResults wrapper
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (result?.__typename === 'TweetWithVisibilityResults' && (result as any).tweet) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    result = (result as any).tweet;
+    logger.debug('twitter-extract', 'Unwrapped TweetWithVisibilityResults');
+  }
+  
   if (!result || !result.legacy) {
     logger.warn('twitter-extract', 'No tweet data in GraphQL response');
     return null;
