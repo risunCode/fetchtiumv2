@@ -2883,6 +2883,12 @@ def extract():
         # Sanitize cookie
         cookie = sanitize_cookie(cookie)
         
+        # For YouTube: Use server cookie as fallback if no client cookie
+        # Full auth cookies cause YouTube to return only HLS formats (no progressive/DASH/audio)
+        # Minimal cookie (PREF + LOGIN_INFO) returns all format types
+        if platform == 'youtube' and not cookie:
+            cookie = "PREF=f4=4000000&f6=40000000&tz=Asia.Jakarta&f7=100; LOGIN_INFO=AFmmF2swRgIhAKNtgHoI7YF36rpCzR_LRoh74XWRoNdGVcgSvT35vPMdAiEAzZBB3ZL2AFSoEC97NYFLweYWEidbHnGzx9j9ksPSAXo:QUQ3MjNmeWhGUS1xSFJLY3RmclZhYk5FOUtiR1prdFU3TWI2dWNnVlU4ODlzd3dBMDVBR1pjZ0phWEFESWRJcjFfR3V2LXBaZ1ZvYVdhNmJQVVJRRHktUWxoV3BXcmg1aXNfUy16NmhCT1cwQV91RkhxSTNZRHVfX09BRHE0Tlg4a1FLOXgyYV8tcWE3dmQtSF9QaGJqclpvTGxwNkEwR1V3"
+        
         # Detect platform
         platform = detect_platform(url)
         if not platform:
