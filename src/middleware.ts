@@ -269,6 +269,12 @@ export function middleware(request: NextRequest) {
   const apiKey = searchParams.get('key') || request.headers.get('x-api-key');
   const origin = request.headers.get('origin');
   const referer = request.headers.get('referer');
+  const isInternalCall = request.headers.get('x-internal-call') === 'true';
+  
+  // Allow internal calls (e.g., Next.js calling Python function on Vercel)
+  if (isInternalCall) {
+    return NextResponse.next();
+  }
   
   // Private mode: validate API key
   if (apiKey) {

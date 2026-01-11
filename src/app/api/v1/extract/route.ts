@@ -192,16 +192,23 @@ async function handlePythonExtraction(
       // Direct call to Python Flask server
       pyUrl = 'http://127.0.0.1:3001/api/extract';
     } else if (process.env.VERCEL_URL) {
-      // Vercel production/preview
+      // Vercel production/preview - call Python function directly
+      // Use relative URL to avoid middleware (internal call)
       pyUrl = `https://${process.env.VERCEL_URL}/api/extract`;
     } else {
       // Fallback
       pyUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/extract`;
     }
 
+    // Add internal header to bypass middleware for Vercel internal calls
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (process.env.VERCEL_URL) {
+      headers['x-internal-call'] = 'true';
+    }
+
     const pyResponse = await fetch(pyUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ url, cookie }),
     });
 
