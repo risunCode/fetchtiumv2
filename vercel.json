@@ -3,17 +3,6 @@
     "api/py/**/*.py": {
       "runtime": "python3.12",
       "maxDuration": 30
-    },
-    "app/api/v1/hls-stream/route.ts": {
-      "memory": 3009,
-      "maxDuration": 60
     }
-  },
-  "excludeFiles": [
-    "node_modules/**",
-    ".next/**",
-    "src/**",
-    "public/**",
-    ".planning/**"
-  ]
+  }
 }
