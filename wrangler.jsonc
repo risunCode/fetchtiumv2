@@ -1,6 +1,0 @@
-{
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "fetchtiumv2",
-  "compatibility_date": "2024-12-01",
-  "compatibility_flags": ["nodejs_compat"]
-}
