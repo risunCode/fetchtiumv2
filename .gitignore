@@ -1,52 +1,52 @@
-# Dependencies
-node_modules/
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# Environment
-.env
-.env.local
-.env.*.local
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
 
-# Logs
-logs/
-*.log
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-pnpm-debug.log*
+.pnpm-debug.log*
 
-# Runtime data
-pids/
-*.pid
-*.seed
-*.pid.lock
+# env files (can opt-in for committing if needed)
+.env*
 
-# Coverage
-coverage/
-.nyc_output/
+# vercel
+.vercel
 
-# Build
-dist/
-build/
+# typescript
+*.tsbuildinfo
+next-env.d.ts
 
-# IDE
-.idea/
-*.swp
-*.swo
-*~
+# planning/backup folders
+.planning/
+old_vanilla/
 
-# OS
-.DS_Store
-Thumbs.db
+# kiro
+.kiro/
 
-# Temp
-tmp/
-temp/
-*.tmp
-
-# Cache
-.cache/
-.npm/
-
-# Backup folders
-.Planning
-.Planning/XTFetch-backup-before-APIBackend/
+# python cache
+__pycache__/
+*.pyc

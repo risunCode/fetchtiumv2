@@ -1,0 +1,80 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.*
+.yarn/*
+
+# Next.js build output (will be rebuilt in Docker)
+.next
+out
+build
+
+# Git
+.git
+.gitignore
+
+# Planning and backup folders
+.planning
+old_vanilla
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage
+__tests__
+tests
+scripts
+
+# Development configs
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment files (use Railway env vars instead)
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# Documentation (not needed in production)
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+!requirements.txt
+
+# Vercel (not needed for Railway)
+.vercel
+vercel.json
+
+# Python cache
+__pycache__
+*.py[cod]
+*$py.class
+.Python
+*.so
+
+# Kiro specs (development only)
+.kiro
+
+# Misc
+*.pem
+temp
+tmp
+*.tmp
+*.log
