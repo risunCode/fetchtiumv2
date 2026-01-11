@@ -1,4 +1,4 @@
-# api/py/extract.py
+# api/extract.py
 """
 Python extractor endpoint for Vercel serverless functions.
 Handles platforms: BiliBili, Reddit, SoundCloud, Pixiv, Eporner, Rule34Video
@@ -1967,7 +1967,7 @@ def transform_weibo_result(results: list, original_url: str = None) -> dict:
 # 12. FLASK ROUTES
 # ============================================
 
-@app.route('/api/py/extract', methods=['POST', 'OPTIONS'])
+@app.route('/api/extract', methods=['POST', 'OPTIONS'])
 def extract():
     """Main extraction endpoint"""
     # Handle CORS preflight
@@ -2038,7 +2038,7 @@ def extract():
         )), 500
 
 
-@app.route('/api/py/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health():
     """Health check endpoint"""
     return jsonify({'status': 'ok', 'runtime': 'python'})

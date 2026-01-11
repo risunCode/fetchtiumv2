@@ -83,7 +83,7 @@ const PUBLIC_ROUTES = [
   '/api/v1/hls-stream',  // HLS to progressive conversion
   '/api/v1/merge',       // Video-audio merge endpoint
   '/api/v1/events',
-  '/api/py/',  // Python extractor (internal calls)
+  '/api/extract',  // Python extractor (internal calls)
   '/api/health',
 ];
 

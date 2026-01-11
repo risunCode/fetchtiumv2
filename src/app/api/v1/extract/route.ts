@@ -190,13 +190,13 @@ async function handlePythonExtraction(
     
     if (process.env.NODE_ENV === 'development') {
       // Direct call to Python Flask server
-      pyUrl = 'http://127.0.0.1:3001/api/py/extract';
+      pyUrl = 'http://127.0.0.1:3001/api/extract';
     } else if (process.env.VERCEL_URL) {
       // Vercel production/preview
-      pyUrl = `https://${process.env.VERCEL_URL}/api/py/extract`;
+      pyUrl = `https://${process.env.VERCEL_URL}/api/extract`;
     } else {
       // Fallback
-      pyUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/py/extract`;
+      pyUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/extract`;
     }
 
     const pyResponse = await fetch(pyUrl, {

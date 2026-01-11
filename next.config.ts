@@ -91,8 +91,8 @@ const nextConfig: NextConfig = {
 
   /**
    * Rewrites for Python API proxy
-   * In both development and production, proxy /api/py/* to Python Flask service
-   * Requirements: 3.3 - THE System SHALL proxy /api/py/* requests to the Python service
+   * In both development and production, proxy /api/extract to Python Flask service
+   * Requirements: 3.3 - THE System SHALL proxy /api/extract requests to the Python service
    */
   async rewrites() {
     // Python API runs on port 3001 in both dev and production (via supervisord)
@@ -100,8 +100,12 @@ const nextConfig: NextConfig = {
     
     return [
       {
-        source: '/api/py/:path*',
-        destination: `${pythonApiUrl}/:path*`,
+        source: '/api/extract',
+        destination: `${pythonApiUrl}/api/extract`,
+      },
+      {
+        source: '/api/health',
+        destination: `${pythonApiUrl}/api/health`,
       },
     ];
   },
