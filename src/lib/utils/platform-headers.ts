@@ -81,6 +81,7 @@ export function getPlatformHeaders(url: string): PlatformHeaders {
   if (isYouTubeUrl(url)) {
     return {
       referer: 'https://www.youtube.com/',
+      origin: 'https://www.youtube.com',
       userAgent: COMMON_USER_AGENT,
     };
   }

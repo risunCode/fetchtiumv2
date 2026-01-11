@@ -33,10 +33,22 @@ export const maxDuration = 60; // 60 seconds max for merge operations
 
 /**
  * Get FFmpeg binary path
- * Checks ffmpeg-static package and common system paths
+ * Priority: System ffmpeg (Railway) > ffmpeg-static (Vercel/local)
  */
 function getFFmpegPath(): string | null {
-  // Try require ffmpeg-static
+  // In production (Railway), prefer system ffmpeg which has full codec support
+  const systemPaths = [
+    '/usr/bin/ffmpeg',
+    '/usr/local/bin/ffmpeg',
+  ];
+  
+  for (const p of systemPaths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  
+  // Fallback: Try ffmpeg-static (for Vercel/local dev)
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const ffmpegStatic = require('ffmpeg-static');
@@ -47,15 +59,13 @@ function getFFmpegPath(): string | null {
     // Ignore
   }
   
-  // Fallback: look in node_modules directly
-  const possiblePaths = [
+  // Last resort: look in node_modules directly
+  const nodePaths = [
     path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
     path.join(process.cwd(), 'node_modules', 'ffmpeg-static', 'ffmpeg'),
-    '/usr/bin/ffmpeg',
-    '/usr/local/bin/ffmpeg',
   ];
   
-  for (const p of possiblePaths) {
+  for (const p of nodePaths) {
     if (fs.existsSync(p)) {
       return p;
     }
