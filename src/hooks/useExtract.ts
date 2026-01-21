@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import type { ExtractResult, ExtractError } from '@/types/extract';
 import type { ExtractRequest } from '@/types/api';
 import { getSavedCookie, getSavedApiKey, detectPlatformFromUrl } from '@/components/CookieModal';
+import { fetchWithCSRF } from '@/lib/utils/csrf';
 
 /**
  * Extraction state
@@ -86,7 +87,7 @@ export function useExtract(): UseExtractReturn {
       // Get API key from localStorage
       const apiKey = getSavedApiKey();
 
-      const response = await fetch('/api/v1/extract', {
+      const response = await fetchWithCSRF('/api/v1/extract', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

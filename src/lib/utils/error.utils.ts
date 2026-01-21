@@ -33,19 +33,19 @@ export enum ErrorCode {
  * Error messages mapping
  */
 export const ErrorMessage: Record<ErrorCode, string> = {
-  [ErrorCode.UNSUPPORTED_PLATFORM]: 'Platform tidak didukung',
-  [ErrorCode.INVALID_URL]: 'URL tidak valid',
-  [ErrorCode.FETCH_FAILED]: 'Gagal mengambil halaman',
-  [ErrorCode.TIMEOUT]: 'Request timeout',
-  [ErrorCode.RATE_LIMITED]: 'Terlalu banyak request, coba lagi nanti',
-  [ErrorCode.AGE_RESTRICTED]: 'Konten dibatasi usia (18+)',
-  [ErrorCode.PRIVATE_CONTENT]: 'Konten privat atau tidak tersedia',
-  [ErrorCode.DELETED_CONTENT]: 'Konten sudah dihapus',
-  [ErrorCode.LOGIN_REQUIRED]: 'Perlu login untuk akses konten ini',
-  [ErrorCode.STORY_EXPIRED]: 'Story sudah expired atau dihapus',
-  [ErrorCode.NO_MEDIA_FOUND]: 'Tidak ditemukan media',
-  [ErrorCode.EXTRACTION_FAILED]: 'Gagal mengekstrak media',
-  [ErrorCode.UNSUPPORTED_FORMAT]: 'Format media tidak didukung'
+  [ErrorCode.UNSUPPORTED_PLATFORM]: 'Platform not supported',
+  [ErrorCode.INVALID_URL]: 'Invalid URL format',
+  [ErrorCode.FETCH_FAILED]: 'Failed to fetch page',
+  [ErrorCode.TIMEOUT]: 'Request timed out',
+  [ErrorCode.RATE_LIMITED]: 'Too many requests, please try again later',
+  [ErrorCode.AGE_RESTRICTED]: 'Content is age-restricted (18+)',
+  [ErrorCode.PRIVATE_CONTENT]: 'Content is private or unavailable',
+  [ErrorCode.DELETED_CONTENT]: 'Content has been deleted',
+  [ErrorCode.LOGIN_REQUIRED]: 'Login required to access this content',
+  [ErrorCode.STORY_EXPIRED]: 'Story has expired or been deleted',
+  [ErrorCode.NO_MEDIA_FOUND]: 'No media found',
+  [ErrorCode.EXTRACTION_FAILED]: 'Failed to extract media',
+  [ErrorCode.UNSUPPORTED_FORMAT]: 'Media format not supported'
 };
 
 /**

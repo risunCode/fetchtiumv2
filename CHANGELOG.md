@@ -4,6 +4,55 @@ All notable changes to FetchtiumV2.
 
 ---
 
+## [1.6.0] - 2026-01-13 — Go Backend Extractors Reorganization
+
+### 🔧 Refactoring (Go Backend)
+
+- **Extractors Reorganization** - Restructured `internal/extractors/` into logical subfolders:
+  - `core/` - Shared types and interfaces (`types.go`)
+  - `registry/` - Platform detection and extractor registry (`registry.go`, `patterns.go`)
+  - `cookies/` - Cookie parsing and management (`cookies.go`)
+  - `native/` - TypeScript-equivalent extractors (Facebook, Instagram, TikTok, Twitter, Pixiv)
+  - `aria-extended/` - yt-dlp/gallery-dl wrapper extractors (YouTube, BiliBili, SoundCloud, etc.)
+  - `tests/` - Property-based and integration tests
+
+- **HTTP Package Simplification** - Merged and cleaned up `pkg/http/`:
+  - `client.go` - HTTP client with connection pooling
+  - `pool.go` - Connection pool management
+  - `helpers.go` - Request/response utilities
+
+- **Type Fixes** - Fixed `ExtractorFactory` type mismatch between registry and extractors
+
+### 📦 Files Changed (Go)
+
+```
+.planning/fetchtium_go/internal/extractors/
+├── core/types.go           # Shared types (ExtractResult, Source, etc.)
+├── registry/
+│   ├── registry.go         # Extractor registration & lookup
+│   └── patterns.go         # URL pattern matching
+├── cookies/cookies.go      # Cookie parsing (Netscape, JSON, raw)
+├── native/                 # Native extractors
+│   ├── facebook/
+│   ├── instagram/
+│   ├── tiktok/
+│   ├── twitter/
+│   └── pixiv/
+├── aria-extended/          # yt-dlp/gallery-dl wrappers
+│   ├── wrapper.go
+│   ├── youtube/
+│   ├── bilibili/
+│   └── ...
+└── tests/                  # Test files
+
+.planning/fetchtium_go/pkg/http/
+├── client.go               # Simplified HTTP client
+├── pool.go                 # Connection pool
+└── helpers.go              # Utilities
+```
+
+---
+
 ## [1.5.1] - 2026-01-12 — Pixiv Native Support + Hotfixes
 
 ### 🚀 What's New

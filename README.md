@@ -104,7 +104,20 @@ Optional API key via `X-API-Key` header for higher rate limits.
 │   │   └── utils/       # Utilities
 │   └── types/           # TypeScript types
 ├── scripts/             # Test scripts
-└── requirements.txt     # Python dependencies
+├── requirements.txt     # Python dependencies
+└── .planning/fetchtium_go/  # Go backend (WIP)
+    ├── cmd/             # CLI entrypoints
+    ├── internal/
+    │   └── extractors/
+    │       ├── core/        # Shared types
+    │       ├── registry/    # Platform detection
+    │       ├── cookies/     # Cookie parsing
+    │       ├── native/      # Native extractors
+    │       ├── aria-extended/  # yt-dlp wrappers
+    │       └── tests/       # Test files
+    └── pkg/
+        ├── http/        # HTTP client & pool
+        └── utils/       # Utilities
 ```
 
 ## Environment Variables
