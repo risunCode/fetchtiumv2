@@ -10,6 +10,7 @@ export enum ErrorCode {
   // Platform detection
   UNSUPPORTED_PLATFORM = 'UNSUPPORTED_PLATFORM',
   INVALID_URL = 'INVALID_URL',
+  PLATFORM_UNAVAILABLE_ON_DEPLOYMENT = 'PLATFORM_UNAVAILABLE_ON_DEPLOYMENT',
   
   // Network
   FETCH_FAILED = 'FETCH_FAILED',
@@ -35,6 +36,7 @@ export enum ErrorCode {
 export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.UNSUPPORTED_PLATFORM]: 'Platform not supported',
   [ErrorCode.INVALID_URL]: 'Invalid URL format',
+  [ErrorCode.PLATFORM_UNAVAILABLE_ON_DEPLOYMENT]: 'Platform is unavailable on this deployment',
   [ErrorCode.FETCH_FAILED]: 'Failed to fetch page',
   [ErrorCode.TIMEOUT]: 'Request timed out',
   [ErrorCode.RATE_LIMITED]: 'Too many requests, please try again later',

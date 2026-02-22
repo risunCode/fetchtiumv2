@@ -74,7 +74,11 @@ export interface Config extends AppConfig {
   cache: CacheConfig;
   /** User agent strings */
   userAgents: typeof userAgents;
+  /** Extractor capability profile */
+  extractorProfile: ExtractorProfile;
 }
+
+export type ExtractorProfile = 'vercel' | 'full';
 
 /**
  * Get the current environment
@@ -102,6 +106,40 @@ function getBaseUrl(): string {
 }
 
 /**
+ * Resolve extractor profile from environment.
+ * Priority:
+ * 1) EXTRACTOR_PROFILE override
+ * 2) Vercel auto-detection
+ * 3) full profile as default
+ */
+export function getExtractorProfile(): ExtractorProfile {
+  const rawProfile = process.env.EXTRACTOR_PROFILE?.trim().toLowerCase();
+  if (rawProfile === 'vercel' || rawProfile === 'full') {
+    return rawProfile;
+  }
+
+  if (process.env.VERCEL || process.env.VERCEL_ENV) {
+    return 'vercel';
+  }
+
+  return 'full';
+}
+
+/**
+ * Check whether Python extractors are enabled for given profile.
+ */
+export function isPythonEnabledForProfile(profile: ExtractorProfile): boolean {
+  return profile === 'full';
+}
+
+/**
+ * Check whether Python extractors are enabled for current runtime profile.
+ */
+export function isPythonEnabled(): boolean {
+  return isPythonEnabledForProfile(getExtractorProfile());
+}
+
+/**
  * Application configuration singleton
  * 
  * Reads from environment variables with sensible defaults.
@@ -116,9 +154,8 @@ export const config: Config = {
   // Logging
   logLevel: process.env.LOG_LEVEL || 'info',
   
-  // Access control (Requirements: 9.2, 9.3)
+  // Access control
   allowedOrigins: parseList(process.env.ALLOWED_ORIGINS, DEFAULT_ORIGINS),
-  apiKeys: parseList(process.env.API_KEYS, []),
   
   // Network settings
   network: {
@@ -141,6 +178,9 @@ export const config: Config = {
   
   // User agents
   userAgents,
+
+  // Extractor profile
+  extractorProfile: getExtractorProfile(),
 };
 
 /**
@@ -169,13 +209,6 @@ export function isTest(): boolean {
  */
 export function getAllowedOrigins(): string[] {
   return config.allowedOrigins;
-}
-
-/**
- * Get API keys
- */
-export function getApiKeys(): string[] {
-  return config.apiKeys;
 }
 
 export default config;

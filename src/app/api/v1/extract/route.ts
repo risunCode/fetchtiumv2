@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getExtractor, isSupported } from '@/lib/extractors';
 import { isPythonPlatform } from '@/lib/extractors/python-platforms';
+import { getExtractorProfile, isPythonEnabled } from '@/lib/config';
 import { addUrls } from '@/lib/utils/url-store';
 import { buildMeta, buildErrorResponse } from '@/lib/utils/response.utils';
 import { ErrorCode } from '@/lib/utils/error.utils';
@@ -30,6 +31,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest): Promise<NextResponse<ExtractResult | ExtractError>> {
   const startTime = Date.now();
+  const pythonEnabled = isPythonEnabled();
   
   try {
     // Parse request body
@@ -69,9 +71,33 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
       );
     }
 
-    // Check platform support (TypeScript or Python)
-    const isPython = isPythonPlatform(url);
-    if (!isPython && !isSupported(url)) {
+    const profile = getExtractorProfile();
+    const requestedPython = isPythonPlatform(url);
+
+    logger.info('extract', 'Starting extraction', {
+      url: url.substring(0, 50),
+      profile,
+      requestedPython,
+      pythonEnabled,
+    });
+
+    // In Vercel profile, explicitly block Python platforms with dedicated error code.
+    if (requestedPython && !pythonEnabled) {
+      return NextResponse.json(
+        buildErrorResponse(
+          ErrorCode.PLATFORM_UNAVAILABLE_ON_DEPLOYMENT,
+          'This platform is available on Railway/Docker deployment.',
+          {
+            responseTime: Date.now() - startTime,
+            accessMode: 'public',
+          }
+        ),
+        { status: 400 }
+      );
+    }
+
+    // Check platform support after deployment capability gate.
+    if (!isSupported(url)) {
       return NextResponse.json(
         buildErrorResponse(ErrorCode.UNSUPPORTED_PLATFORM, 'Platform not supported', {
           responseTime: Date.now() - startTime,
@@ -81,13 +107,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
       );
     }
 
-    logger.info('extract', 'Starting extraction', { url: url.substring(0, 50), isPython });
-
     // Update last request time for warm/cold status tracking
     updateLastRequestTime();
 
-    // Route to Python extractor if needed
-    if (isPython) {
+    // Route to Python extractor in full profile
+    if (requestedPython) {
       return await handlePythonExtraction(url, cookie, startTime);
     }
 
@@ -177,7 +201,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 }
 
 /**
- * Handle extraction via Python serverless function
+ * Handle extraction via Python service
  */
 async function handlePythonExtraction(
   url: string,
@@ -185,31 +209,22 @@ async function handlePythonExtraction(
   startTime: number
 ): Promise<NextResponse<ExtractResult | ExtractError>> {
   try {
-    // In development, call Python server directly
-    // In production (Vercel), call the Python function via internal URL
     let pyUrl: string;
-    
-    if (process.env.NODE_ENV === 'development') {
-      // Direct call to Python Flask server
-      pyUrl = 'http://127.0.0.1:3001/api/extract';
-    } else if (process.env.VERCEL_URL) {
-      // Vercel production/preview - call Python function directly
-      // Use relative URL to avoid middleware (internal call)
-      pyUrl = `https://${process.env.VERCEL_URL}/api/extract`;
-    } else {
-      // Fallback
-      pyUrl = `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/extract`;
-    }
 
-    // Add internal header to bypass middleware for Vercel internal calls
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (process.env.VERCEL_URL) {
-      headers['x-internal-call'] = 'true';
+    // In development/full profile, call local Python service
+    if (process.env.NODE_ENV === 'development') {
+      pyUrl = 'http://127.0.0.1:3001/api/extract';
+    } else if (process.env.PYTHON_API_URL) {
+      // Explicit Python endpoint for non-Vercel deployments
+      pyUrl = `${process.env.PYTHON_API_URL.replace(/\/$/, '')}/api/extract`;
+    } else {
+      // Docker/Railway default where python runs as sidecar process
+      pyUrl = 'http://127.0.0.1:3001/api/extract';
     }
 
     const pyResponse = await fetch(pyUrl, {
       method: 'POST',
-      headers,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, cookie }),
     });
 
@@ -224,11 +239,11 @@ async function handlePythonExtraction(
       usedCookie,
     });
 
-    // Handle error from Python extractor
     if (!result.success) {
       logger.warn('extract', 'Python extraction failed', {
         url: url.substring(0, 50),
         error: result.error?.code,
+        status: pyResponse.status,
       });
 
       return NextResponse.json(
@@ -254,6 +269,8 @@ async function handlePythonExtraction(
     }
     addUrls(mediaUrls);
 
+    addFilenames(result);
+
     logger.info('extract', 'Python extraction successful', {
       url: url.substring(0, 50),
       platform: result.platform,
@@ -261,10 +278,6 @@ async function handlePythonExtraction(
       responseTime,
     });
 
-    // Add filenames
-    addFilenames(result);
-
-    // Return successful result
     const response: ExtractResult = {
       ...result,
       meta,

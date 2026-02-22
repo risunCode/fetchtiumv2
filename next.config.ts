@@ -78,7 +78,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Access-Control-Allow-Headers',
-            value: 'X-API-Key, Content-Type, Accept',
+            value: 'Content-Type, Accept',
           },
           {
             key: 'Access-Control-Max-Age',
@@ -86,29 +86,6 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-    ];
-  },
-
-  /**
-   * Rewrites for Python API proxy
-   * In both development and production, proxy /api/extract to Python Flask service
-   * Requirements: 3.3 - THE System SHALL proxy /api/extract requests to the Python service
-   */
-  async rewrites() {
-    // Python API runs on port 3001 in both dev and production (via supervisord)
-    const pythonApiUrl = process.env.PYTHON_API_URL || 'http://localhost:3001';
-    
-    return [
-      {
-        source: '/api/extract',
-        destination: `${pythonApiUrl}/api/extract`,
-      },
-      {
-        source: '/api/health',
-        destination: `${pythonApiUrl}/api/health`,
-      },
-      // Note: /api/yt-stream removed - YouTube now uses progressive/DASH formats
-      // via /api/v1/stream and /api/v1/merge endpoints
     ];
   },
 

@@ -9,8 +9,6 @@
 export interface AppConfig {
   /** Allowed origins for CORS */
   allowedOrigins: string[];
-  /** API keys for authentication */
-  apiKeys: string[];
   /** Node environment */
   nodeEnv: 'development' | 'production' | 'test';
   /** Server port */
@@ -19,6 +17,8 @@ export interface AppConfig {
   baseUrl: string;
   /** Enable debug logging */
   debug: boolean;
+  /** Extractor runtime profile */
+  extractorProfile: 'vercel' | 'full';
 }
 
 /**
@@ -26,9 +26,9 @@ export interface AppConfig {
  */
 export interface EnvConfig {
   ALLOWED_ORIGINS?: string;
-  API_KEYS?: string;
   NODE_ENV?: string;
   PORT?: string;
   BASE_URL?: string;
   DEBUG?: string;
+  EXTRACTOR_PROFILE?: 'vercel' | 'full';
 }

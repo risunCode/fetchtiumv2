@@ -12,6 +12,7 @@ export PORT=${PORT:-3000}
 export NODE_ENV=${NODE_ENV:-production}
 export PYTHONPATH=${PYTHONPATH:-/app}
 export HOSTNAME=${HOSTNAME:-0.0.0.0}
+export EXTRACTOR_PROFILE=${EXTRACTOR_PROFILE:-full}
 
 # Update supervisord config with actual PORT
 # This ensures Next.js binds to Railway's assigned port
@@ -23,6 +24,7 @@ echo "============================================"
 echo "PORT: $PORT"
 echo "NODE_ENV: $NODE_ENV"
 echo "PYTHONPATH: $PYTHONPATH"
+echo "EXTRACTOR_PROFILE: $EXTRACTOR_PROFILE"
 echo "============================================"
 
 # Start supervisord (manages both Next.js and Flask processes)

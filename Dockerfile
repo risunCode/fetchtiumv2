@@ -38,7 +38,7 @@ RUN npm run build
 
 # ============================================
 # Stage 3: Runner
-# Production image with Python base
+# Production image with Python + Next.js
 # ============================================
 FROM python:3.12-slim AS runner
 
@@ -52,6 +52,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
+ENV EXTRACTOR_PROFILE=full
 
 # Install system dependencies
 # - Node.js 20 for Next.js runtime
@@ -70,16 +71,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python packages
-# - yt-dlp: YouTube, SoundCloud, BiliBili, Twitch, Bandcamp extraction
-# - gallery-dl: Reddit, Pinterest, Weibo extraction
-# - flask: Python API server
-# - httpx[http2]: HTTP/2 client for faster requests
-RUN pip install --no-cache-dir \
-    yt-dlp \
-    gallery-dl \
-    flask \
-    "httpx[http2]"
+# Install Python dependencies
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy built Next.js application from builder stage
 COPY --from=builder /app/.next/standalone ./
@@ -92,16 +86,11 @@ COPY api ./api
 # Copy CHANGELOG.md for changelog page
 COPY CHANGELOG.md ./
 
-# Copy requirements.txt for reference
-COPY requirements.txt ./
-
 # Create supervisor configuration directory
 RUN mkdir -p /etc/supervisor/conf.d
 
-# Copy supervisord configuration
+# Copy supervisor and startup scripts
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Copy start script that handles Railway's PORT environment variable
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
