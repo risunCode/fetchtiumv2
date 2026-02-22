@@ -6,23 +6,24 @@ Media extraction tool for 16+ social media platforms. Built with Next.js 16, Typ
 
 - 🎬 Extract videos, images, and audio from social media
 - 🔒 Guest-first approach with automatic cookie retry for private content
-- 📱 Responsive dark UI with real-time status
+- 📱 Responsive dark UI with Lucide icons
 - 🎵 Built-in media player with FFmpeg transcoding
 - 📦 Batch download support for galleries
-- 🔄 SSE-based server status (warm/cold indicator)
-- 📖 API documentation page with examples
+-  API documentation page with examples
+- 🚀 Dynamic deployment: Vercel (native) or Docker/Railway (full)
 
 ## Supported Platforms
 
-### Native Extractors (TypeScript)
+### Native Extractors (TypeScript) - Works on Vercel
 | Platform | Videos | Images | Stories | Reels |
 |----------|--------|--------|---------|-------|
 | Facebook | ✅ | ✅ | ✅ | ✅ |
 | Instagram | ✅ | ✅ | ✅ | ✅ |
 | TikTok | ✅ | ✅ | - | - |
 | Twitter/X | ✅ | ✅ | - | - |
+| Pixiv | - | ✅ | - | - |
 
-### Python Extractors (yt-dlp / gallery-dl)
+### Python Extractors (yt-dlp / gallery-dl) - Docker/Railway Only
 | Platform | Type | Notes |
 |----------|------|-------|
 | YouTube | Video/Audio | HLS streaming, quality selection |
@@ -33,7 +34,6 @@ Media extraction tool for 16+ social media platforms. Built with Next.js 16, Typ
 | Reddit | Video/Image | Gallery support |
 | Pinterest | Image | Pin extraction |
 | Weibo | Video/Image | - |
-| Pixiv | Image | NSFW (requires cookie) |
 | Eporner | Video | NSFW |
 | Rule34Video | Video | NSFW |
 
@@ -84,7 +84,7 @@ Invoke-RestMethod -Uri "https://your-domain.com/api/v1/extract" -Method POST -Bo
 
 ### Authentication
 
-Optional API key via `X-API-Key` header for higher rate limits.
+Public access - no API key required.
 
 ## Project Structure
 
@@ -127,33 +127,53 @@ Optional API key via `X-API-Key` header for higher rate limits.
 PORT=3000
 NODE_ENV=development
 
+# Deployment Profile (auto-detected if not set)
+# - "vercel": Native extractors only (for Vercel deployment)
+# - "full": Native + Python extractors (for Docker/Railway)
+EXTRACTOR_PROFILE=full
+
 # Access Control
 ALLOWED_ORIGINS=http://localhost:3000
-API_KEYS=ftm_your_api_key_here
 
-# URL Encryption
-URL_ENCRYPT_KEY=your_32_char_hex_key
+# Python API URL (for non-Vercel deployments)
+PYTHON_API_URL=http://127.0.0.1:3001
 
 # Rate Limiting
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_MAX=100
 RATE_LIMIT_WINDOW=60000
-
-# Python (dev only)
-PYTHON_SERVER_PORT=3001
-FLASK_DEBUG=false
 ```
 
 ## Deployment
 
+### Deployment Profiles
+
+| Profile | Platforms | Environment |
+|---------|-----------|-------------|
+| `vercel` | Native only (5) | Vercel auto-detected |
+| `full` | Native + Python (15) | Docker/Railway default |
+
+Profile resolution order:
+1. `EXTRACTOR_PROFILE` env var (explicit override)
+2. Auto-detect Vercel (`VERCEL` or `VERCEL_ENV` env vars)
+3. Default to `full`
+
 ### Railway (Recommended)
 Full support with FFmpeg for video/audio merge and HLS transcoding.
 
+```bash
+# Deploy with Dockerfile
+railway run ./start.sh
+```
+
 ### Vercel
-All extractors work, but no FFmpeg support:
-- ❌ BiliBili video+audio merge
-- ❌ YouTube HLS transcoding
-- ❌ SoundCloud Opus playback
+Native extractors only (Facebook, Instagram, TikTok, Twitter, Pixiv).
+
+Python platforms (YouTube, BiliBili, etc.) will return `PLATFORM_UNAVAILABLE_ON_DEPLOYMENT` error.
+
+Limitations:
+- ❌ No FFmpeg support
+- ❌ No Python extractors
 
 ## Tech Stack
 

@@ -3,6 +3,8 @@
 import { useEffect, useState, ReactNode } from 'react';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import { ArrowLeft, FileText } from 'lucide-react';
+import Image from 'next/image';
 
 export default function ChangelogPage() {
   const [content, setContent] = useState<string>('');
@@ -28,18 +30,24 @@ export default function ChangelogPage() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </div>
+              <Image
+                src="/icon.png"
+                alt="Fetchtium"
+                width={32}
+                height={32}
+                className="rounded-lg"
+              />
               <span className="text-lg font-semibold">Fetchtium</span>
             </Link>
             <span className="text-zinc-700">/</span>
-            <span className="text-zinc-400 text-sm">Changelog</span>
+            <span className="text-zinc-400 text-sm flex items-center gap-1.5">
+              <FileText className="w-4 h-4" />
+              Changelog
+            </span>
           </div>
-          <Link href="/" className="text-sm text-zinc-500 hover:text-white transition-colors">
-            ← Back
+          <Link href="/" className="flex items-center gap-1.5 text-sm text-zinc-500 hover:text-white transition-colors">
+            <ArrowLeft className="w-4 h-4" />
+            Back
           </Link>
         </div>
       </header>

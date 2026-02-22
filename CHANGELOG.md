@@ -4,6 +4,46 @@ All notable changes to FetchtiumV2.
 
 ---
 
+## [1.7.0] - 2026-02-23 — Dynamic Deployment Profile
+
+### 🚀 What's New
+
+- **Dynamic Deployment Profile** - Single codebase works on both Vercel and Docker/Linux
+  - `vercel` profile: Native extractors only (Facebook, Instagram, TikTok, Twitter, Pixiv)
+  - `full` profile: Native + Python extractors (YouTube, BiliBili, SoundCloud, etc.)
+- **Auto Environment Detection** - Automatically detects Vercel vs Docker/Railway
+  - Priority: `EXTRACTOR_PROFILE` env var → Vercel auto-detect → Default to `full`
+- **Platform Availability Error** - New `PLATFORM_UNAVAILABLE_ON_DEPLOYMENT` error code
+  - Returns helpful message when Python platforms requested on Vercel deployment
+- **Public Access Model** - Removed API key requirement, open access for all users
+
+### 🔧 Technical Changes
+
+- **EXTRACTOR_PROFILE env var** - Controls extractor capability at runtime
+- **getExtractorProfile()** - Resolves profile from environment with fallback chain
+- **isPythonEnabled()** - Helper to check Python extractor availability
+- **Direct HTTP calls** - Removed Next.js rewrites, Python service called directly
+- **PYTHON_API_URL support** - Configurable Python endpoint for non-Vercel deployments
+
+### 📦 Files Changed
+
+```
++ .gitattributes                    # LF enforcement for shell scripts
+~ vercel.json                       # Added framework, regions, EXTRACTOR_PROFILE
+~ next.config.ts                    # Removed rewrites, updated CORS headers
+~ src/lib/config/index.ts           # Added getExtractorProfile(), isPythonEnabled()
+~ src/types/config.ts               # Added extractorProfile, removed apiKeys
+~ src/app/api/v1/extract/route.ts   # Profile-aware routing, platform blocking
+~ src/lib/utils/error.utils.ts      # Added PLATFORM_UNAVAILABLE_ON_DEPLOYMENT
+~ Dockerfile                        # Added EXTRACTOR_PROFILE=full, use requirements.txt
+~ start.sh                          # Added EXTRACTOR_PROFILE env var
+~ src/app/page.tsx                  # Logo from public/icon.png, Lucide icons
+~ src/app/changelog/page.tsx        # Logo from public/icon.png, Lucide icons
+- StatusBadge component             # Removed cold/warm state from UI
+```
+
+---
+
 ## [1.6.0] - 2026-01-13 — Go Backend Extractors Reorganization
 
 ### 🔧 Refactoring (Go Backend)
