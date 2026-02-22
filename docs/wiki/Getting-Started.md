@@ -2,139 +2,68 @@
 
 ## Prerequisites
 
-### Required
+- Node.js 20+
+- Python 3.10+
+- pip
 
-- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
-- **Python 3.10+** - [Download Python](https://python.org/)
+For full media operations:
 
-### Optional (for full functionality)
+- FFmpeg installed (or available in container runtime)
 
-- **FFmpeg** - Required for HLS conversion and video-audio merge
-- **yt-dlp** - Required for YouTube, SoundCloud, BiliBili, Twitch, Bandcamp
-- **gallery-dl** - Required for Reddit, Pinterest, Weibo
-
-### Installing Dependencies
-
-**FFmpeg:**
-```bash
-# Ubuntu/Debian
-sudo apt install ffmpeg
-
-# macOS
-brew install ffmpeg
-
-# Windows (via Chocolatey)
-choco install ffmpeg
-```
-
-**Python tools:**
-```bash
-pip install yt-dlp gallery-dl flask httpx[http2]
-# or
-pip install -r requirements.txt
-```
-
-## Quick Start
-
-### 1. Clone and Install
+## Install
 
 ```bash
-git clone https://github.com/your-repo/fetchtiumv2.git
-cd fetchtiumv2
-
-# Install Node dependencies
 npm install
-
-# Install Python dependencies
 pip install -r requirements.txt
-```
-
-### 2. Configure Environment
-
-```bash
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your settings (see [Configuration](Configuration.md)).
-
-### 3. Run Development Server
+## Run Locally
 
 ```bash
 npm run dev
 ```
 
-This starts both Next.js (port 3000) and Python Flask (port 3001) servers.
+This runs:
 
-### 4. Open the App
+- Next.js app on `http://localhost:3000`
+- Python extractor service on `http://localhost:3001`
 
-Visit [http://localhost:3000](http://localhost:3000)
-
-## Test the API
+## Quick Test
 
 ```bash
-# Health check
-curl http://localhost:3000/health
-
-# Status endpoint
-curl http://localhost:3000/api/v1/status
-
-# Extract media
 curl -X POST http://localhost:3000/api/v1/extract \
   -H "Content-Type: application/json" \
-  -d '{"url": "https://twitter.com/user/status/123456789"}'
+  -d "{\"url\":\"https://twitter.com/user/status/123\"}"
 ```
 
-## Project Structure
-
-```
-fetchtiumv2/
-├── api/
-│   └── extract.py           # Python Flask extractors
-├── src/
-│   ├── app/
-│   │   ├── api/v1/          # API routes
-│   │   ├── docs/            # API documentation page
-│   │   ├── changelog/       # Changelog page
-│   │   └── page.tsx         # Main page
-│   ├── components/          # React components
-│   ├── hooks/               # Custom hooks
-│   ├── lib/
-│   │   ├── core/            # Network & parser
-│   │   ├── extractors/      # TypeScript extractors
-│   │   ├── middleware/      # Security middleware
-│   │   └── utils/           # Utilities
-│   └── types/               # TypeScript types
-├── scripts/                 # Test scripts
-├── public/                  # Static assets
-├── .env.example             # Environment template
-├── requirements.txt         # Python dependencies
-└── package.json             # Node dependencies
-```
-
-## Available Scripts
+Check status:
 
 ```bash
-# Development (Next.js + Python)
-npm run dev
-
-# Development (Next.js only)
-npm run dev:next
-
-# Development (Python only)
-npm run dev:python
-
-# Production build
-npm run build
-
-# Start production server
-npm start
-
-# Lint code
-npm run lint
+curl http://localhost:3000/api/v1/status
+curl http://localhost:3000/api/health
 ```
 
-## Next Steps
+## Runtime Profiles
 
-- [API Reference](API-Reference.md) - Learn about all available endpoints
-- [Configuration](Configuration.md) - Configure the server
-- [Supported Platforms](Supported-Platforms.md) - See all supported platforms
+If `EXTRACTOR_PROFILE` is not set:
+
+- Vercel environment -> `vercel`
+- Non-Vercel environment -> `full`
+
+Optional override:
+
+```env
+EXTRACTOR_PROFILE=vercel
+```
+
+## Useful Scripts
+
+```bash
+npm run dev
+npm run dev:next
+npm run dev:python
+npm run build
+npm start
+npm run lint
+```

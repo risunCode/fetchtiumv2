@@ -1,55 +1,47 @@
 # FetchtiumV2 Wiki
 
-Welcome to the FetchtiumV2 documentation! FetchtiumV2 is a media extraction tool for 16+ social media platforms, built with Next.js, TypeScript, React, and Python.
+FetchtiumV2 is a hybrid extractor service:
+
+- Next.js API routes and UI
+- TypeScript native extractors
+- Python extractor backend for yt-dlp/gallery-dl platforms
 
 ## Quick Links
 
 - [Getting Started](Getting-Started.md)
-- [API Reference](API-Reference.md)
-- [Supported Platforms](Supported-Platforms.md)
 - [Configuration](Configuration.md)
 - [Architecture](Architecture.md)
+- [Supported Platforms](Supported-Platforms.md)
+- [API Reference](API-Reference.md)
 - [Deployment](Deployment.md)
 
-## Overview
+## Current Runtime Model
 
-FetchtiumV2 extracts videos, images, and audio from social media platforms with a modern, responsive dark UI.
+- `POST /api/v1/extract` routes by URL platform.
+- Native platforms are always processed in TypeScript.
+- Python platforms are processed only when Python is enabled by profile.
+- Profile values:
+  - `vercel` -> native only
+  - `full` -> native + Python
 
-### Key Features
+If a Python-only platform is requested in `vercel` profile, API returns:
 
-| Feature | Description |
-|---------|-------------|
-| 🎬 Media Extraction | Extract videos, images, audio from 16+ platforms |
-| 🔒 Guest-First | Automatic cookie retry for private content |
-| 📱 Responsive UI | Dark theme with real-time status |
-| 🎵 Media Player | Built-in player with FFmpeg transcoding |
-| 📦 Batch Download | Download all items from galleries |
-| 🔄 SSE Status | Real-time warm/cold server indicator |
-| 📖 API Docs | Interactive documentation with examples |
+- `error.code = PLATFORM_UNAVAILABLE_ON_DEPLOYMENT`
+- HTTP status `400`
 
-### Supported Platforms
+## Core Characteristics
 
-**Native Extractors (TypeScript):**
-- Facebook, Instagram, TikTok, Twitter/X, Pixiv
+- Consistent JSON response shape (`success`, `error`, `meta`)
+- Platform-aware extraction routing
+- Stream and download proxy endpoints
+- HLS/DASH handling and merge endpoints
+- Status endpoint with supported platform list
 
-**Python Extractors (yt-dlp / gallery-dl):**
-- YouTube, BiliBili, SoundCloud, Twitch, Bandcamp
-- Reddit, Pinterest, Weibo
-- Eporner, Rule34Video (NSFW)
+## Important Notes
 
-## System Requirements
-
-- Node.js 18+
-- Python 3.10+
-- FFmpeg (for HLS conversion and merge)
-- yt-dlp (for video platforms)
-- gallery-dl (for image platforms)
-
-## Tech Stack
-
-- **Framework**: Next.js 16 (App Router)
-- **Language**: TypeScript + Python
-- **Frontend**: React 19, Tailwind CSS
-- **HTTP Client**: Undici (Node), httpx (Python)
-- **Media Processing**: FFmpeg (ffmpeg-static)
-- **Python Tools**: yt-dlp, gallery-dl, Flask
+- In this repo, deployment and access behavior are defined by code, not wiki assumptions.
+- Check:
+  - `src/app/api/v1/extract/route.ts`
+  - `src/lib/config/index.ts`
+  - `src/lib/extractors/python-platforms.ts`
+  - `src/lib/extractors/index.ts`

@@ -1,19 +1,14 @@
 # FetchtiumV2
 
-**[Home](Home.md)**
-
-## Getting Started
-- [Quick Start](Getting-Started.md)
+- [Home](Home.md)
+- [Getting Started](Getting-Started.md)
 - [Configuration](Configuration.md)
-
-## Reference
-- [API Reference](API-Reference.md)
-- [Supported Platforms](Supported-Platforms.md)
-
-## Advanced
 - [Architecture](Architecture.md)
+- [Supported Platforms](Supported-Platforms.md)
+- [API Reference](API-Reference.md)
 - [Deployment](Deployment.md)
 
-## Links
+External:
+
+- [In-app Docs](/docs)
 - [Changelog](/changelog)
-- [API Docs](/docs)
