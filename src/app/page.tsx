@@ -130,6 +130,29 @@ export default function Home() {
         </div>
       </header>
 
+      <div className="border-b border-zinc-800/50 bg-zinc-950/70">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 text-xs text-zinc-400 flex items-center justify-center gap-3">
+          <span>Backlinks:</span>
+          <a
+            href="https://github.com/risuncode"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-300 hover:text-white transition-colors"
+          >
+            github.com/risuncode
+          </a>
+          <span>|</span>
+          <a
+            href="https://downaria.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 hover:text-emerald-300 transition-colors"
+          >
+            downaria.vercel.app
+          </a>
+        </div>
+      </div>
+
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <ExtractForm onExtract={handleExtract} onSettingsClick={handleSettingsClick} isLoading={isLoading} />
 
@@ -177,13 +200,13 @@ export default function Home() {
             <div>
               <h3 className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-4">Links</h3>
               <div className="space-y-2">
-                <a href="https://github.com/nicepkg/FetchtiumV2" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors">
+                <a href="https://github.com/risuncode/FetchtiumV2" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors">
                   <svg className="w-5 h-5 text-zinc-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
                   <span>Source Code</span>
                 </a>
-                <a href="https://fetchtiumv2.up.railway.app" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors">
+                <a href="https://downaria.vercel.app" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors">
                   <svg className="w-5 h-5 text-purple-400" viewBox="0 0 24 24" fill="currentColor"><path d="M.113 10.27A12.375 12.375 0 0 0 0 12c0 6.627 5.373 12 12 12 5.628 0 10.35-3.874 11.637-9.101l-6.769-6.769a3.745 3.745 0 0 0-5.3 0L.113 10.27zm23.774-1.37L13.13.143a.5.5 0 0 0-.707 0L.143 12.423a.5.5 0 0 0 0 .707l10.757 10.757a.5.5 0 0 0 .707 0L23.887 11.607a.5.5 0 0 0 0-.707z"/></svg>
-                  <span>Railway <span className="text-emerald-400 text-xs ml-1">| Full Support</span></span>
+                  <span>Downaria <span className="text-emerald-400 text-xs ml-1">| Partner Link</span></span>
                 </a>
                 <a href="https://fetchtiumv2.vercel.app" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors" title="Vercel deployment profile">
                   <svg className="w-5 h-5 text-zinc-400" viewBox="0 0 24 24" fill="currentColor"><path d="M24 22.525H0l12-21.05 12 21.05z"/></svg>
