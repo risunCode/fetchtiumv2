@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import type { ExtractResult, ExtractError } from '@/types/extract';
 import type { ExtractRequest } from '@/types/api';
-import { getSavedCookie, getSavedApiKey, detectPlatformFromUrl } from '@/components/CookieModal';
+import { getSavedCookie, detectPlatformFromUrl } from '@/components/CookieModal';
 import { fetchWithCSRF } from '@/lib/utils/csrf';
 
 /**
@@ -84,15 +84,10 @@ export function useExtract(): UseExtractReturn {
         ...(clientCookie && { cookie: clientCookie }),
       };
 
-      // Get API key from localStorage
-      const apiKey = getSavedApiKey();
-
       const response = await fetchWithCSRF('/api/v1/extract', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Include API key if configured
-          ...(apiKey && { 'x-api-key': apiKey }),
         },
         body: JSON.stringify(requestBody),
       });

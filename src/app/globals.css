@@ -124,6 +124,26 @@ body {
   }
 }
 
+@keyframes modal-backdrop-in {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(8px); }
+}
+
+@keyframes modal-backdrop-out {
+  from { opacity: 1; backdrop-filter: blur(8px); }
+  to { opacity: 0; backdrop-filter: blur(0px); }
+}
+
+@keyframes modal-panel-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes modal-panel-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
 /* Animation utility classes */
 .animate-fade-in {
   animation: fade-in 0.3s ease-out forwards;
@@ -144,6 +164,11 @@ body {
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
 }
+
+.animate-modal-backdrop-in { animation: modal-backdrop-in 0.22s ease forwards; }
+.animate-modal-backdrop-out { animation: modal-backdrop-out 0.22s ease forwards; }
+.animate-modal-panel-in { animation: modal-panel-in 0.24s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+.animate-modal-panel-out { animation: modal-panel-out 0.2s ease forwards; }
 
 /* Skeleton loading */
 .skeleton {

@@ -6,7 +6,7 @@
  * - SSRF protection
  * - Path traversal protection
  * - Rate limiting
- * - Access control (origin/API key validation)
+ * - Basic origin sanitization (no API key required)
  */
 
 import { NextResponse } from 'next/server';
@@ -75,23 +75,6 @@ const XSS_PATTERNS: RegExp[] = [
 ];
 
 /**
- * Routes that allow public access without origin check
- */
-const PUBLIC_ROUTES = [
-  '/api/v1/stream',
-  '/api/v1/download',
-  '/api/v1/thumbnail', // Thumbnail proxy for Instagram
-  '/api/v1/hls-stream',  // HLS to progressive conversion
-  '/api/v1/hls-proxy',   // HLS proxy for CORS-restricted streams
-  '/api/v1/merge',       // Video-audio merge endpoint
-  '/api/v1/events',
-  '/api/changelog',      // Changelog markdown
-  '/api/extract',  // Python extractor (internal calls)
-  '/api/yt-stream', // Python YouTube stream (internal calls)
-  '/api/health',
-];
-
-/**
  * Default allowed origins
  */
 const DEFAULT_ORIGINS = [
@@ -144,26 +127,10 @@ function getAllowedOrigins(): string[] {
   return envOrigins.split(',').map(s => s.trim()).filter(Boolean);
 }
 
-function getApiKeys(): string[] {
-  const envKeys = process.env.API_KEYS;
-  if (!envKeys) return [];
-  return envKeys.split(',').map(s => s.trim()).filter(Boolean);
-}
-
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
   const allowedOrigins = getAllowedOrigins();
   return allowedOrigins.some(allowed => origin.startsWith(allowed));
-}
-
-function isValidApiKey(key: string | null): boolean {
-  if (!key) return false;
-  const apiKeys = getApiKeys();
-  return apiKeys.includes(key);
-}
-
-function isPublicRoute(pathname: string): boolean {
-  return PUBLIC_ROUTES.some(route => pathname.startsWith(route));
 }
 
 function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
@@ -264,42 +231,8 @@ export function middleware(request: NextRequest) {
     }
   }
   
-  // Skip access control for public routes
-  if (isPublicRoute(pathname)) {
-    return NextResponse.next();
-  }
-  
-  // Access control for protected routes
-  const apiKey = searchParams.get('key') || request.headers.get('x-api-key');
-  const origin = request.headers.get('origin');
-  const referer = request.headers.get('referer');
-  const isInternalCall = request.headers.get('x-internal-call') === 'true';
-  
-  // Allow internal calls (e.g., Next.js calling Python function on Vercel)
-  if (isInternalCall) {
-    return NextResponse.next();
-  }
-  
-  // Private mode: validate API key
-  if (apiKey) {
-    if (isValidApiKey(apiKey)) {
-      return NextResponse.next();
-    }
-    return createErrorResponse('UNAUTHORIZED', 'Invalid API key', 401);
-  }
-  
-  // Public mode: check origin
-  const originToCheck = origin || referer;
-  if (originToCheck && isAllowedOrigin(originToCheck)) {
-    return NextResponse.next();
-  }
-  
-  // No key, no valid origin - deny access
-  return createErrorResponse(
-    'FORBIDDEN',
-    'API key required for external access',
-    403
-  );
+  // Allow public access after validation
+  return NextResponse.next();
 }
 
 // Configure which routes the middleware applies to

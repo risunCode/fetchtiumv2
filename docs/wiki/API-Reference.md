@@ -135,5 +135,5 @@ Related endpoints:
 Access handling is enforced in `src/middleware.ts`.
 
 - Public routes are explicitly whitelisted.
-- Other routes may require valid origin or API key depending on request context.
+- Routes are public; API key not required.
 - Rate limiting and security checks are applied in middleware.

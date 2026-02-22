@@ -75,7 +75,6 @@ Python service: `http://localhost:3001`
 PORT=3000
 NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-API_KEYS=ftm_your_api_key_here
 REQUEST_TIMEOUT=30000
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_MAX=100

@@ -60,7 +60,7 @@ Key files:
 
 ## Deployment Checklist
 
-1. Set required environment values (`ALLOWED_ORIGINS`, optional `API_KEYS`).
+1. Set required environment values (`ALLOWED_ORIGINS`).
 2. Decide profile:
    - Vercel -> `vercel`
    - Railway/Docker -> `full`

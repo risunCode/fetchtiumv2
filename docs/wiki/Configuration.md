@@ -9,7 +9,6 @@ Copy `.env.example` to `.env.local` and adjust values.
 | `PORT` | `3000` | Next.js server port |
 | `NODE_ENV` | `development` | Node environment |
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Allowed origins |
-| `API_KEYS` | `ftm_your_api_key_here` | Optional API key list |
 | `REQUEST_TIMEOUT` | `30000` | Outbound request timeout (ms) |
 | `RATE_LIMIT_ENABLED` | `true` | Toggle middleware rate limit |
 | `RATE_LIMIT_MAX` | `100` | Max requests per window |
@@ -36,7 +35,6 @@ Profile resolution order:
 PORT=3000
 NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-API_KEYS=ftm_local_key
 REQUEST_TIMEOUT=30000
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_MAX=100

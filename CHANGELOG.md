@@ -251,8 +251,6 @@ src/app/api/v1/hls-proxy/route.ts  # HLS proxy for CORS-restricted streams
 
 ### 🚀 What's New
 
-- **API Documentation Page** - New `/docs` page with complete API reference, PowerShell/cURL examples, and copyable API key
-- **API Key Authentication** - Added `X-API-Key` header support with demo key `ftm_9e930c5e19b4edb497636944a053806f`
 - **YouTube Loading Indicator** - Shows "Processing stream... please wait" during FFmpeg transcoding
 - **BiliBili Loading Indicator** - Shows "Merging video and audio... please wait" during merge
 - **Thumbnail Proxy** - BiliBili and YouTube thumbnails now display correctly via stream proxy
@@ -285,8 +283,6 @@ src/app/api/v1/hls-proxy/route.ts  # HLS proxy for CORS-restricted streams
 - **ResultCard** - Uses `/api/v1/stream?url=...` for thumbnail proxy instead of hash
 - **PlayerModal** - Added `needsHlsStream` to useEffect dependencies
 - **extract route** - Simplified URL storage, removed thumbnailHash assignment
-- **.env.local** - Added demo API key
-- **.env.example** - Added API key placeholder with generation command
 
 ---
 
@@ -526,7 +522,6 @@ This is the complete Fastify-based version before migrating to Next.js.
 - **Request size limit** - 1MB max
 - **Rate limiting** - 100 req/min per IP
 - **Security headers** - via @fastify/helmet
-- **Access control** - Origin validation + API key support
 - **Frontend sanitization** - backticks, template literals blocked
 
 ### Cookie System

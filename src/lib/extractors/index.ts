@@ -10,6 +10,7 @@
 import { ExtractorError, ErrorCode } from '@/lib/utils/error.utils';
 import { logger } from '@/lib/utils/logger';
 import { isPythonPlatform, PYTHON_PLATFORMS } from './python-platforms';
+import { getExtractorProfile, isPythonEnabled } from '@/lib/config';
 import type { BaseExtractor, ExtractorClass } from './base.extractor';
 
 // Import all extractors
@@ -76,24 +77,38 @@ export function detectPlatform(url: string): string | null {
  * Check if URL is supported (TypeScript or Python extractors)
  */
 export function isSupported(url: string): boolean {
-  return extractors.some(E => E.match(url)) || isPythonPlatform(url);
+  const supportedByNative = extractors.some(E => E.match(url));
+  if (supportedByNative) return true;
+
+  if (!isPythonEnabled()) return false;
+  return isPythonPlatform(url);
 }
 
 /**
- * Get all supported platforms with their patterns (TypeScript + Python)
+ * Get all supported platforms with their patterns (profile-aware)
  */
 export function getSupportedPlatforms(): PlatformInfo[] {
-  const tsPlats = extractors.map(E => ({
+  const nativePlatforms = extractors.map(E => ({
     platform: E.platform,
     patterns: E.patterns.map(p => p.toString())
   }));
-  
-  const pyPlats = PYTHON_PLATFORMS.map(p => ({
+
+  if (!isPythonEnabled()) {
+    return nativePlatforms;
+  }
+
+  const pythonPlatforms = PYTHON_PLATFORMS.map(p => ({
     platform: p.platform,
     patterns: p.patterns.map(r => r.toString())
   }));
-  
-  return [...tsPlats, ...pyPlats];
+
+  logger.debug('extractor', 'Resolved supported platforms by profile', {
+    profile: getExtractorProfile(),
+    nativeCount: nativePlatforms.length,
+    pythonCount: pythonPlatforms.length,
+  });
+
+  return [...nativePlatforms, ...pythonPlatforms];
 }
 
 /**
