@@ -104,6 +104,30 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Banner */}
+      <div className="bg-zinc-900/50 border-b border-zinc-800/50">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-center gap-2 text-xs text-zinc-500">
+          <span>Powered by</span>
+          <a
+            href="https://github.com/risunCode"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-400 hover:text-white transition-colors"
+          >
+            risunCode
+          </a>
+          <span>•</span>
+          <a
+            href="https://downaria.vercel.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 hover:text-emerald-300 transition-colors"
+          >
+            Downaria
+          </a>
+        </div>
+      </div>
+
       {/* Main Content */}
       <main className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Extract Form */}
@@ -171,12 +195,12 @@ export default function Home() {
                   <span>Source Code</span>
                 </a>
                 <a
-                  href="https://fetchtiumv2.up.railway.app"
+                  href="https://downaria.vercel.app"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors"
                 >
-                  <Triangle className="w-5 h-5 text-purple-400" />
+                  <Triangle className="w-5 h-5 text-emerald-400" />
                   <span>Railway <span className="text-emerald-400 text-xs ml-1">• Full Support</span></span>
                 </a>
                 <a
