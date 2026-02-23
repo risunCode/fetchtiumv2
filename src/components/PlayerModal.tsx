@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import Hls from 'hls.js';
-import { buildMergeUrl } from '@/lib/utils/merge.helper';
-import { isBiliBiliUrl, isYouTubeUrl } from '@/lib/utils/platform-headers';
+import { buildMergeUrl, shouldCopyAudioStream } from '@/lib/utils/merge.helper';
 
 interface PlayerModalProps {
   isOpen: boolean;
@@ -13,6 +12,8 @@ interface PlayerModalProps {
   thumbnail?: string | null;
   /** Separate audio URL for video-only streams (YouTube, BiliBili) */
   audioUrl?: string | null;
+  audioMime?: string | null;
+  audioExtension?: string | null;
   /** Whether the URL needs proxy (YouTube HLS) */
   needsProxy?: boolean;
   onClose: () => void;
@@ -27,30 +28,25 @@ function isHlsFormat(url: string | null): boolean {
 }
 
 /**
- * Check if URL is BiliBili DASH segment (.m4s)
- */
-function isBiliBiliDash(url: string | null): boolean {
-  if (!url) return false;
-  return isBiliBiliUrl(url) && url.includes('.m4s');
-}
-
-/**
  * Check if source needs video-audio merge for playback
- * Returns true for BiliBili DASH or YouTube video-only with separate audio
+ * FormatList only passes audioUrl for split video streams.
  */
 function needsMergeForPlayback(url: string | null, audioUrl: string | null | undefined): boolean {
-  if (!url || !audioUrl) return false;
-  
-  // BiliBili DASH segments always need merge
-  if (isBiliBiliDash(url)) return true;
-  
-  // YouTube video-only with separate audio needs merge
-  if (isYouTubeUrl(url) && audioUrl) return true;
-  
-  return false;
+  return Boolean(url && audioUrl);
 }
 
-export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, needsProxy, onClose }: PlayerModalProps) {
+export function PlayerModal({
+  isOpen,
+  url,
+  type,
+  mime,
+  thumbnail,
+  audioUrl,
+  audioMime,
+  audioExtension,
+  needsProxy,
+  onClose,
+}: PlayerModalProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -77,7 +73,14 @@ export function PlayerModal({ isOpen, url, type, mime, thumbnail, audioUrl, need
   // Build stream URL
   const streamUrl = url 
     ? useMergeEndpoint && audioUrl
-      ? buildMergeUrl({ videoUrl: url, audioUrl })
+      ? buildMergeUrl({
+          videoUrl: url,
+          audioUrl,
+          copyAudio: shouldCopyAudioStream({
+            mime: audioMime || undefined,
+            extension: audioExtension || undefined,
+          }),
+        })
       : needsHlsTranscode
         ? `/api/v1/hls-stream?url=${encodeURIComponent(url)}&type=${type}`
         : needsHlsProxy

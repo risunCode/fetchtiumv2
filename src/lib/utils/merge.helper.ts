@@ -11,9 +11,12 @@ import { MediaSource, MediaItem } from '@/types/extract';
  * Options for building a merge URL
  */
 export interface MergeUrlOptions {
-  videoUrl: string;
-  audioUrl: string;
+  videoUrl?: string;
+  audioUrl?: string;
+  videoHash?: string;
+  audioHash?: string;
   filename?: string;
+  copyAudio?: boolean;
 }
 
 /**
@@ -24,14 +27,50 @@ export interface MergeUrlOptions {
  */
 export function buildMergeUrl(options: MergeUrlOptions): string {
   const params = new URLSearchParams();
-  params.set('videoUrl', options.videoUrl);
-  params.set('audioUrl', options.audioUrl);
+
+  if (options.videoHash) {
+    params.set('videoH', options.videoHash);
+  } else if (options.videoUrl) {
+    params.set('videoUrl', options.videoUrl);
+  }
+
+  if (options.audioHash) {
+    params.set('audioH', options.audioHash);
+  } else if (options.audioUrl) {
+    params.set('audioUrl', options.audioUrl);
+  }
   
   if (options.filename) {
     params.set('filename', options.filename);
   }
+
+  if (options.copyAudio) {
+    params.set('copyAudio', '1');
+  }
   
   return `/api/v1/merge?${params.toString()}`;
+}
+
+/**
+ * Check if audio stream can be copied safely in merge endpoint.
+ *
+ * Safe candidates:
+ * - extension: m4a, aac
+ * - mime: audio/mp4, audio/aac
+ */
+export function shouldCopyAudioStream(source: Pick<MediaSource, 'extension' | 'mime'> | null | undefined): boolean {
+  if (!source) {
+    return false;
+  }
+
+  const extension = (source.extension || '').toLowerCase();
+  const mime = (source.mime || '').toLowerCase();
+
+  if (extension === 'm4a' || extension === 'aac') {
+    return true;
+  }
+
+  return mime.includes('audio/mp4') || mime.includes('audio/aac');
 }
 
 /**
@@ -78,9 +117,17 @@ export function findBestAudio(items: MediaItem[]): MediaSource | null {
     return null;
   }
   
-  // Find all audio items
-  const audioItems = items.filter(item => item.type === 'audio');
-  
+  // Find all explicit audio items first
+  let audioItems = items.filter(item => item.type === 'audio');
+
+  // Backward-safe fallback for older payloads that mixed audio-like sources
+  // into non-audio items.
+  if (audioItems.length === 0) {
+    audioItems = items.filter(item =>
+      (item.sources || []).some(source => (source.mime || '').toLowerCase().startsWith('audio/'))
+    );
+  }
+
   if (audioItems.length === 0) {
     return null;
   }
@@ -89,7 +136,14 @@ export function findBestAudio(items: MediaItem[]): MediaSource | null {
   const audioSources: MediaSource[] = [];
   for (const item of audioItems) {
     if (item.sources && item.sources.length > 0) {
-      audioSources.push(...item.sources);
+      audioSources.push(
+        ...item.sources.filter(source => {
+          if (item.type === 'audio') {
+            return true;
+          }
+          return (source.mime || '').toLowerCase().startsWith('audio/');
+        })
+      );
     }
   }
   

@@ -101,11 +101,13 @@ export async function GET(request: NextRequest): Promise<Response> {
 
   // Check if URL is from known platforms with their own expiry
   const isYouTubeUrl = url.includes('googlevideo.com') || url.includes('youtube.com');
+  const isYouTubeThumbnail = url.includes('i.ytimg.com') || url.includes('yt3.ggpht.com');
   const isBiliBiliUrl = url.includes('bilivideo.') || url.includes('bilibili.') || url.includes('akamaized.net') || url.includes('bstarstatic.com');
 
   // Validate URL is from previous extraction (prevent open proxy) - skip if from hash
   // Skip validation for YouTube/BiliBili - they have their own expiry mechanism
-  if (!hashParam && !isYouTubeUrl && !isBiliBiliUrl && !isStoredUrl(url)) {
+  // Also skip validation for YouTube thumbnails (public static images)
+  if (!hashParam && !isYouTubeUrl && !isYouTubeThumbnail && !isBiliBiliUrl && !isStoredUrl(url)) {
     logger.warn('stream', 'URL not in store', { url: url.substring(0, 50) });
     return new Response(JSON.stringify({ 
       error: { 

@@ -36,12 +36,14 @@ Uses Dockerfile-based deploy (`railway.json`).
 
 - Starts with `./start.sh`
 - Health check path: `/api/health`
-- Runs Next.js and Python process together via `supervisord`.
+- Runs Next.js and Python process together via `start.sh` orchestration.
 
 Key runtime defaults:
 
 - `EXTRACTOR_PROFILE=full`
-- Python service at `127.0.0.1:3001`
+- Python service at `127.0.0.1:5000`
+- Python listener port controlled by `PYTHON_SERVER_PORT` (default `5000`)
+- Next.js forwarding uses `PYTHON_API_URL` / `NEXT_PUBLIC_PYTHON_API_URL` (default `http://127.0.0.1:5000`)
 
 ## Docker
 
@@ -50,13 +52,12 @@ Container runtime includes:
 - Node.js 20 runtime
 - Python 3.12 runtime
 - FFmpeg
-- Supervisor process manager
+- Shell orchestration script (`start.sh`)
 
 Key files:
 
 - `Dockerfile`
 - `start.sh`
-- `supervisord.conf`
 
 ## Deployment Checklist
 
@@ -85,3 +86,8 @@ curl -X POST https://your-domain/api/v1/extract \
 ```
 
 In `vercel` profile this should return `PLATFORM_UNAVAILABLE_ON_DEPLOYMENT`.
+
+Public endpoint note:
+
+- Use `POST /api/v1/extract` as canonical public extract route.
+- Keep `/api/extract` only for compatibility workflows.

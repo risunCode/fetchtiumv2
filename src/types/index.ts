@@ -21,7 +21,6 @@ export type {
   StreamRequest,
   DownloadRequest,
   StatusResponse,
-  SSEStatusEvent,
   HealthResponse,
   ApiErrorResponse,
 } from './api';

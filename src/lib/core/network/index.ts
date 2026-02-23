@@ -11,8 +11,6 @@ export {
   closeConnections,
   getFileSize,
   getFileSizes,
-  getConnectionStats,
-  trackRequest,
   NetworkError,
   NetworkErrorCode,
 } from './client';
@@ -21,7 +19,6 @@ export type {
   FetchOptions,
   FetchStreamResult,
   FetchTextResult,
-  ConnectionStats,
 } from './client';
 
 // Cookie exports

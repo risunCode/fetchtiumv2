@@ -87,16 +87,6 @@ export interface FetchTextResult {
   finalUrl: string;
 }
 
-/**
- * Connection pool statistics
- */
-export interface ConnectionStats {
-  isWarm: boolean;
-  lastRequestTime: number | null;
-  timeSinceLastRequest: number | null;
-  keepAliveTimeout: number;
-}
-
 // Shared agent for connection pooling
 const agent = new Agent({
   connections: 100,
@@ -104,31 +94,6 @@ const agent = new Agent({
   keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
   keepAliveMaxTimeout: 600000,
 });
-
-// Track last request time for connection warmth detection
-let lastRequestTime: number | null = null;
-
-/**
- * Track a request for connection status monitoring
- */
-export function trackRequest(): void {
-  lastRequestTime = Date.now();
-}
-
-/**
- * Get connection pool statistics
- */
-export function getConnectionStats(): ConnectionStats {
-  const now = Date.now();
-  const isWarm = lastRequestTime !== null && now - lastRequestTime < KEEP_ALIVE_TIMEOUT;
-
-  return {
-    isWarm,
-    lastRequestTime,
-    timeSinceLastRequest: lastRequestTime ? now - lastRequestTime : null,
-    keepAliveTimeout: KEEP_ALIVE_TIMEOUT,
-  };
-}
 
 /**
  * Decompress stream based on content-encoding header
@@ -169,7 +134,6 @@ export async function fetchStream(
   url: string,
   options: FetchOptions = {}
 ): Promise<FetchStreamResult> {
-  trackRequest();
 
   const {
     headers = {},

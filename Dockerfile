@@ -57,13 +57,11 @@ ENV EXTRACTOR_PROFILE=full
 # Install system dependencies
 # - Node.js 20 for Next.js runtime
 # - FFmpeg for video/audio processing
-# - Supervisor for process management
 # - curl for health checks
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gnupg \
     ffmpeg \
-    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Node.js 20
@@ -86,16 +84,12 @@ COPY api ./api
 # Copy CHANGELOG.md for changelog page
 COPY CHANGELOG.md ./
 
-# Create supervisor configuration directory
-RUN mkdir -p /etc/supervisor/conf.d
-
-# Copy supervisor and startup scripts
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+# Copy startup script
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
-# Expose port (Railway will override with PORT env var)
-EXPOSE 3000
+# Expose Next.js and Python API ports
+EXPOSE 3000 5000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \

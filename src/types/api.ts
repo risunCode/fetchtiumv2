@@ -46,22 +46,12 @@ export interface StatusResponse {
 }
 
 /**
- * SSE event data for /api/v1/events
- */
-export interface SSEStatusEvent {
-  type: 'status';
-  data: {
-    status: 'online' | 'degraded' | 'offline';
-    timestamp: number;
-  };
-}
-
-/**
  * GET /api/health response
  */
 export interface HealthResponse {
   status: 'ok' | 'error';
   timestamp: number;
+  runtime?: string;
 }
 
 /**

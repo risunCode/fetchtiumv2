@@ -7,10 +7,10 @@ import {
   FormatList,
   PlayerModal,
   CookieModal,
-  StatusBadge,
   JsonOutput,
 } from '@/components';
 import { useExtract } from '@/hooks';
+import Image from 'next/image';
 
 const NATIVE_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'twitter', 'pixiv'] as const;
 const WRAPPER_PLATFORMS = ['youtube', 'bilibili', 'soundcloud', 'twitch', 'bandcamp', 'reddit', 'pinterest', 'weibo', 'eporner', 'rule34video'] as const;
@@ -25,6 +25,8 @@ export default function Home() {
   const [playerMime, setPlayerMime] = useState<string | null>(null);
   const [playerThumbnail, setPlayerThumbnail] = useState<string | null>(null);
   const [playerAudioUrl, setPlayerAudioUrl] = useState<string | null>(null);
+  const [playerAudioMime, setPlayerAudioMime] = useState<string | null>(null);
+  const [playerAudioExtension, setPlayerAudioExtension] = useState<string | null>(null);
   const [playerNeedsProxy, setPlayerNeedsProxy] = useState<boolean>(false);
   const [supportedPlatforms, setSupportedPlatforms] = useState<string[]>([...NATIVE_PLATFORMS]);
 
@@ -77,12 +79,23 @@ export default function Home() {
 
   const handleSettingsClick = useCallback(() => setCookieModalOpen(true), []);
 
-  const handlePlay = useCallback((url: string, type: 'video' | 'audio', mime?: string, thumbnail?: string, audioUrl?: string, needsProxy?: boolean) => {
+  const handlePlay = useCallback((
+    url: string,
+    type: 'video' | 'audio',
+    mime?: string,
+    thumbnail?: string,
+    audioUrl?: string,
+    needsProxy?: boolean,
+    audioMime?: string,
+    audioExtension?: string,
+  ) => {
     setPlayerUrl(url);
     setPlayerType(type);
     setPlayerMime(mime || null);
     setPlayerThumbnail(thumbnail || null);
     setPlayerAudioUrl(audioUrl || null);
+    setPlayerAudioMime(audioMime || null);
+    setPlayerAudioExtension(audioExtension || null);
     setPlayerNeedsProxy(needsProxy || false);
     setPlayerModalOpen(true);
   }, []);
@@ -94,6 +107,8 @@ export default function Home() {
     setPlayerMime(null);
     setPlayerThumbnail(null);
     setPlayerAudioUrl(null);
+    setPlayerAudioMime(null);
+    setPlayerAudioExtension(null);
     setPlayerNeedsProxy(false);
   }, []);
 
@@ -109,11 +124,7 @@ export default function Home() {
       <header className="border-b border-zinc-800/50">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            </div>
+            <Image src="/icon.png" alt="Fetchtium" width={32} height={32} className="w-8 h-8 rounded-lg" />
             <h1 className="text-lg font-semibold">Fetchtium</h1>
           </div>
           <div className="flex items-center gap-2">
@@ -125,30 +136,15 @@ export default function Home() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
               API Docs
             </a>
-            <StatusBadge />
           </div>
         </div>
       </header>
 
       <div className="border-b border-zinc-800/50 bg-zinc-950/70">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 text-xs text-zinc-400 flex items-center justify-center gap-3">
-          <span>Backlinks:</span>
-          <a
-            href="https://github.com/risuncode"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-zinc-300 hover:text-white transition-colors"
-          >
-            github.com/risuncode
-          </a>
-          <span>|</span>
-          <a
-            href="https://downaria.vercel.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-emerald-400 hover:text-emerald-300 transition-colors"
-          >
-            downaria.vercel.app
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-2 text-xs text-center">
+          <span className="text-zinc-400">Try our new version of social media downloader: </span>
+          <a href="https://downaria.vercel.app" target="_blank" rel="noopener noreferrer" className="text-emerald-400 hover:text-emerald-300 transition-colors font-medium">
+            DownAria
           </a>
         </div>
       </div>
@@ -206,7 +202,7 @@ export default function Home() {
                 </a>
                 <a href="https://downaria.vercel.app" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors">
                   <svg className="w-5 h-5 text-purple-400" viewBox="0 0 24 24" fill="currentColor"><path d="M.113 10.27A12.375 12.375 0 0 0 0 12c0 6.627 5.373 12 12 12 5.628 0 10.35-3.874 11.637-9.101l-6.769-6.769a3.745 3.745 0 0 0-5.3 0L.113 10.27zm23.774-1.37L13.13.143a.5.5 0 0 0-.707 0L.143 12.423a.5.5 0 0 0 0 .707l10.757 10.757a.5.5 0 0 0 .707 0L23.887 11.607a.5.5 0 0 0 0-.707z"/></svg>
-                  <span>Downaria <span className="text-emerald-400 text-xs ml-1">| Partner Link</span></span>
+                  <span>DownAria</span>
                 </a>
                 <a href="https://fetchtiumv2.vercel.app" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 px-4 py-2.5 bg-zinc-900/50 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-zinc-300 text-sm transition-colors" title="Vercel deployment profile">
                   <svg className="w-5 h-5 text-zinc-400" viewBox="0 0 24 24" fill="currentColor"><path d="M24 22.525H0l12-21.05 12 21.05z"/></svg>
@@ -216,7 +212,7 @@ export default function Home() {
             </div>
 
             <div>
-              <h3 className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-4">Supported Platforms</h3>
+              <h3 className="text-zinc-500 text-xs font-medium uppercase tracking-wider mb-4">More media supported</h3>
               <div className="space-y-3">
                 <div>
                   <p className="text-zinc-600 text-xs mb-2">Native ({nativeShown.length})</p>
@@ -245,6 +241,12 @@ export default function Home() {
             </div>
           </div>
           
+          <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+            <p className="text-amber-400/80 text-xs">
+              💡 When DownAria is offline, FetchtiumV2 is ready to handle all supported platforms natively!
+            </p>
+          </div>
+          
           <div className="pt-6 border-t border-zinc-800/50 text-center text-zinc-600 text-xs">
             Fetchtium v2 | Media Extraction Tool
           </div>
@@ -258,6 +260,8 @@ export default function Home() {
         mime={playerMime}
         thumbnail={playerThumbnail}
         audioUrl={playerAudioUrl}
+        audioMime={playerAudioMime}
+        audioExtension={playerAudioExtension}
         needsProxy={playerNeedsProxy}
         onClose={handleClosePlayer}
       />

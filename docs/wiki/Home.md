@@ -1,10 +1,18 @@
-# FetchtiumV2 Wiki
+# FetchtiumV2 v2.0.0 Wiki
 
 FetchtiumV2 is a hybrid extractor service:
 
 - Next.js API routes and UI
 - TypeScript native extractors
 - Python extractor backend for yt-dlp/gallery-dl platforms
+
+## v2.0 Highlights
+
+- **YouTube Multi-Codec**: Returns ALL codecs (H.264, VP9, AV1) per resolution for user choice
+- **Progressive Priority**: 360p H.264 with audio shown first as "READY" (no merge needed)
+- **Auto-Extract**: Paste button automatically extracts when valid URL is in clipboard
+- **JetBrains Mono**: All UI text now uses JetBrains Mono font
+- **Python on Port 5000**: Python service runs on port 5000
 
 ## Quick Links
 
@@ -17,7 +25,8 @@ FetchtiumV2 is a hybrid extractor service:
 
 ## Current Runtime Model
 
-- `POST /api/v1/extract` routes by URL platform.
+- `POST /api/v1/extract` is the canonical public extraction route.
+- `POST /api/extract` exists as a secondary compatibility route.
 - Native platforms are always processed in TypeScript.
 - Python platforms are processed only when Python is enabled by profile.
 - Profile values:

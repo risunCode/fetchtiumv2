@@ -10,7 +10,6 @@ interface CookieModalProps {
 type Platform = 'facebook' | 'instagram' | 'twitter' | 'youtube';
 
 const PLATFORMS: Platform[] = ['facebook', 'instagram', 'twitter', 'youtube'];
-const MODAL_ANIMATION_MS = 220;
 
 function parseCookies(
   text: string,
@@ -144,7 +143,6 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
   });
 
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const updateSavedCounts = useCallback(() => {
     setSavedCounts({
@@ -155,28 +153,15 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
     });
   }, []);
 
-  const clearCloseTimer = useCallback(() => {
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
-  }, []);
-
   const requestClose = useCallback(() => {
-    if (isClosing) return;
-
-    clearCloseTimer();
+    if (isClosing || !isRendered) return;
     setIsClosing(true);
-    closeTimerRef.current = setTimeout(() => {
-      setIsRendered(false);
-      setIsClosing(false);
-      onClose();
-    }, MODAL_ANIMATION_MS);
-  }, [clearCloseTimer, isClosing, onClose]);
+    onClose();
+  }, [isClosing, isRendered, onClose]);
 
   useEffect(() => {
     if (isOpen) {
-      clearCloseTimer();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRendered(true);
       setIsClosing(false);
       updateSavedCounts();
@@ -187,13 +172,8 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
 
     if (!isRendered || isClosing) return;
 
-    clearCloseTimer();
     setIsClosing(true);
-    closeTimerRef.current = setTimeout(() => {
-      setIsRendered(false);
-      setIsClosing(false);
-    }, MODAL_ANIMATION_MS);
-  }, [clearCloseTimer, isClosing, isOpen, isRendered, updateSavedCounts]);
+  }, [isClosing, isOpen, isRendered, updateSavedCounts]);
 
   useEffect(() => {
     if (!isRendered) return;
@@ -221,7 +201,15 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [isRendered, requestClose]);
 
-  useEffect(() => () => clearCloseTimer(), [clearCloseTimer]);
+  const handleCloseAnimationEnd = useCallback(
+    (event: React.AnimationEvent<HTMLDivElement>) => {
+      if (!isClosing || event.animationName !== 'modal-panel-out') return;
+
+      setIsRendered(false);
+      setIsClosing(false);
+    },
+    [isClosing]
+  );
 
   const handleSaveCookie = useCallback(() => {
     if (!cookieInput.trim()) {
@@ -267,7 +255,10 @@ export function CookieModal({ isOpen, onClose }: CookieModalProps) {
       style={{ background: 'rgba(0, 0, 0, 0.82)', backdropFilter: 'blur(8px)' }}
       onClick={handleBackdropClick}
     >
-      <div className={`w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900 shadow-[0_28px_90px_rgba(0,0,0,0.55)] ring-1 ring-zinc-700/40 ${isClosing ? 'animate-modal-panel-out' : 'animate-modal-panel-in'}`}>
+      <div
+        className={`w-full max-w-lg overflow-hidden rounded-2xl border border-zinc-700/80 bg-zinc-900 shadow-[0_28px_90px_rgba(0,0,0,0.55)] ring-1 ring-zinc-700/40 ${isClosing ? 'animate-modal-panel-out' : 'animate-modal-panel-in'}`}
+        onAnimationEnd={handleCloseAnimationEnd}
+      >
         <div className="flex items-center justify-between border-b border-zinc-800 bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-800/80 p-4">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2" aria-hidden="true">

@@ -6,6 +6,7 @@
  * - videoUrl: string (required) - Video stream URL
  * - audioUrl: string (required) - Audio stream URL
  * - filename: string (optional) - Output filename for Content-Disposition
+ * - copyAudio: 1 (optional) - Copy audio codec instead of AAC transcode when safe
  * 
  * Supports:
  * - BiliBili DASH segments (video + audio merge)
@@ -99,6 +100,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const videoHashParam = request.nextUrl.searchParams.get('videoH');
   const audioHashParam = request.nextUrl.searchParams.get('audioH');
   const filename = request.nextUrl.searchParams.get('filename');
+  const copyAudioRequested = request.nextUrl.searchParams.get('copyAudio') === '1';
 
   // Resolve video URL
   const videoResolved = resolveUrl(videoUrlParam, videoHashParam);
@@ -185,7 +187,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   logger.info('merge', 'Starting video-audio merge', { 
     videoUrl: videoUrl.substring(0, 80),
     audioUrl: audioUrl.substring(0, 80),
-    filename: filename || 'none'
+    filename: filename || 'none',
+    copyAudioRequested,
   });
 
   try {
@@ -197,86 +200,137 @@ export async function GET(request: NextRequest): Promise<Response> {
     const videoHeadersStr = buildFFmpegHeadersString(videoHeaders);
     const audioHeadersStr = buildFFmpegHeadersString(audioHeaders);
 
-    // Build FFmpeg arguments
-    const ffmpegArgs: string[] = [
-      '-hide_banner',
-      '-loglevel', 'error',
-    ];
-
-    // Input 0: Video stream with platform headers
-    ffmpegArgs.push('-user_agent', COMMON_USER_AGENT);
-    if (videoHeadersStr) {
-      ffmpegArgs.push('-headers', videoHeadersStr);
-    }
-    ffmpegArgs.push('-i', videoUrl);
-
-    // Input 1: Audio stream with platform headers
-    ffmpegArgs.push('-user_agent', COMMON_USER_AGENT);
-    if (audioHeadersStr) {
-      ffmpegArgs.push('-headers', audioHeadersStr);
-    }
-    ffmpegArgs.push('-i', audioUrl);
-
-    // Output options
-    ffmpegArgs.push(
-      '-c:v', 'copy',           // Copy video codec (no re-encode)
-      '-c:a', 'aac',            // Transcode audio to AAC for compatibility
-      '-b:a', '128k',           // Audio bitrate
-      '-map', '0:v:0',          // Map video from input 0
-      '-map', '1:a:0',          // Map audio from input 1
-      '-movflags', 'frag_keyframe+empty_moov+default_base_moof', // Fragmented MP4 for streaming
-      '-f', 'mp4',
-      '-'                       // Output to stdout
-    );
-
-    // Spawn FFmpeg process
-    const ffmpeg = spawn(ffmpegBinary, ffmpegArgs, {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-
-    let hasData = false;
-    let stderrOutput = '';
-
     // Create transform stream for response
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
 
-    // Handle stdout (video data)
-    ffmpeg.stdout.on('data', (chunk: Buffer) => {
-      hasData = true;
-      writer.write(new Uint8Array(chunk)).catch(() => {});
-    });
+    const buildFfmpegArgs = (copyAudio: boolean): string[] => {
+      const ffmpegArgs: string[] = [
+        '-hide_banner',
+        '-loglevel', 'error',
+      ];
 
-    ffmpeg.stdout.on('end', () => {
-      writer.close().catch(() => {});
-    });
-
-    ffmpeg.stdout.on('error', (err) => {
-      logger.error('merge', 'Stream error', { error: err.message });
-      writer.abort(err).catch(() => {});
-    });
-
-    // Capture stderr for error logging
-    ffmpeg.stderr.on('data', (data: Buffer) => {
-      stderrOutput += data.toString();
-    });
-
-    // Handle FFmpeg process errors
-    ffmpeg.on('error', (err) => {
-      logger.error('merge', 'FFmpeg process error', { error: err.message });
-      writer.abort(new Error('FFmpeg process failed')).catch(() => {});
-    });
-
-    ffmpeg.on('close', (code) => {
-      if (code !== 0 && !hasData) {
-        logger.error('merge', 'FFmpeg failed', { 
-          code, 
-          stderr: stderrOutput.substring(0, 500) 
-        });
-        writer.abort(new Error(`FFmpeg failed with code ${code}`)).catch(() => {});
+      // Input 0: Video stream with platform headers
+      ffmpegArgs.push(
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '5',
+        '-user_agent', COMMON_USER_AGENT,
+      );
+      if (videoHeadersStr) {
+        ffmpegArgs.push('-headers', videoHeadersStr);
       }
-    });
+      ffmpegArgs.push('-i', videoUrl);
+
+      // Input 1: Audio stream with platform headers
+      ffmpegArgs.push(
+        '-reconnect', '1',
+        '-reconnect_streamed', '1',
+        '-reconnect_delay_max', '5',
+        '-user_agent', COMMON_USER_AGENT,
+      );
+      if (audioHeadersStr) {
+        ffmpegArgs.push('-headers', audioHeadersStr);
+      }
+      ffmpegArgs.push('-i', audioUrl);
+
+      ffmpegArgs.push(
+        '-c:v', 'copy',
+      );
+
+      if (copyAudio) {
+        ffmpegArgs.push('-c:a', 'copy');
+      } else {
+        ffmpegArgs.push('-c:a', 'aac', '-b:a', '128k');
+      }
+
+      ffmpegArgs.push(
+        '-map', '0:v:0',
+        '-map', '1:a:0',
+        '-movflags', 'frag_keyframe+empty_moov+default_base_moof',
+        '-f', 'mp4',
+        '-',
+      );
+
+      return ffmpegArgs;
+    };
+
+    let writerClosed = false;
+    const closeWriter = () => {
+      if (!writerClosed) {
+        writerClosed = true;
+        writer.close().catch(() => {});
+      }
+    };
+    const abortWriter = (error: Error) => {
+      if (!writerClosed) {
+        writerClosed = true;
+        writer.abort(error).catch(() => {});
+      }
+    };
+
+    let retriedWithTranscode = false;
+
+    const spawnMerge = (copyAudio: boolean) => {
+      const ffmpeg = spawn(ffmpegBinary, buildFfmpegArgs(copyAudio), {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      });
+
+      let hasData = false;
+      let stderrOutput = '';
+
+      ffmpeg.stdout.on('data', (chunk: Buffer) => {
+        hasData = true;
+        writer.write(new Uint8Array(chunk)).catch(() => {});
+      });
+
+      ffmpeg.stdout.on('error', (err) => {
+        logger.error('merge', 'Stream error', { error: err.message, copyAudio });
+        abortWriter(err instanceof Error ? err : new Error('FFmpeg stdout stream failed'));
+      });
+
+      ffmpeg.stderr.on('data', (data: Buffer) => {
+        stderrOutput += data.toString();
+      });
+
+      ffmpeg.on('error', (err) => {
+        logger.error('merge', 'FFmpeg process error', { error: err.message, copyAudio });
+        abortWriter(new Error('FFmpeg process failed'));
+      });
+
+      ffmpeg.on('close', (code) => {
+        if (code === 0) {
+          closeWriter();
+          return;
+        }
+
+        const canRetryWithTranscode = copyAudioRequested && copyAudio && !retriedWithTranscode && !hasData;
+        if (canRetryWithTranscode) {
+          retriedWithTranscode = true;
+          logger.warn('merge', 'Retrying merge with AAC transcode fallback', {
+            code,
+            stderr: stderrOutput.substring(0, 500),
+          });
+          spawnMerge(false);
+          return;
+        }
+
+        logger.error('merge', 'FFmpeg failed', {
+          code,
+          copyAudio,
+          stderr: stderrOutput.substring(0, 500),
+        });
+
+        if (!hasData) {
+          abortWriter(new Error(`FFmpeg failed with code ${code}`));
+        } else {
+          closeWriter();
+        }
+      });
+    };
+
+    spawnMerge(copyAudioRequested);
 
     // Build response headers
     const responseHeaders: Record<string, string> = {

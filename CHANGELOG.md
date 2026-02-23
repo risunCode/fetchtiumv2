@@ -4,6 +4,101 @@ All notable changes to FetchtiumV2.
 
 ---
 
+## [2.0.1] - 2026-02-23 — Bug Fixes & Cleanup
+
+### 🐛 Bug Fixes
+
+- **CookieModal Close Fix** - Modal now closes properly; `onClose()` called immediately instead of waiting for animation end
+- **FormatList Render Fix** - Fixed "Cannot update a component while rendering a different component" error by using stable `useCallback` for `onDownloadWithWarning`
+
+### 🗑️ Removed
+
+- **StatusBadge Component** - Removed warm/cold server status indicator
+- **useStatus Hook** - Removed SSE status tracking hook
+- **/api/v1/events Route** - Removed SSE endpoint for server status
+- **ConnectionStats** - Removed `isWarm`, `trackRequest`, `getConnectionStats` from network client
+
+### 🔧 Technical
+
+- Cleaned up all references to warm/cold status tracking across codebase
+- Removed unused SSEStatusEvent type definition
+
+---
+
+## [2.0.0] - 2026-02-23 — YouTube Multi-Codec + UI Polish
+
+### 🚀 Highlights
+
+- **YouTube Multi-Codec Support** - Returns ALL codecs per resolution (H.264, VP9, AV1) for user choice
+- **Progressive Format Priority** - 360p H.264 with audio now shown FIRST with "READY" status (no merge needed)
+- **18 Video Sources** - Returns 18 YouTube formats (vs 8 before) with proper codec grouping
+- **DASH Warning Popups** - Shows warning when downloading DASH formats requiring merge
+- **New UI Banner** - Added "Try our new version of social media downloader: DownAria" link below header
+
+### 🎨 UI/UX Improvements
+
+- **Logo Integration** - Added icon.png logo in header using Next.js Image component
+- **Auto-Extract on Paste** - Paste button now automatically extracts when valid URL is in clipboard
+- **Button Labels** - Added text labels "paste" and "settings" to action buttons
+- **Font Update** - All text now uses JetBrains Mono font
+- **Removed Backlinks** - Cleaned up header area, removed backlinks section
+- **Offline Message** - Footer shows "When DownAria is offline, FetchtiumV2 is ready to wait" message
+- **Section Rename** - Changed "Supported Platforms" to "More media supported"
+
+### 🔧 Technical Changes
+
+- **Format Processing** - `process_youtube_formats()` now separates progressive vs DASH, multi-codec per resolution
+- **HLS Detection** - Added `/manifest/`, `index.m3u8`, `hls` protocol checks
+- **YouTube URL Handling** - Added `noplaylist=True` and URL canonicalization for playlist/radio URLs
+- **Codec Grouping** - FormatList.tsx groups formats by codec: Progressive, H.264, VP9, AV1, Audio
+- **Thumbnail Authorization** - Fixed stream endpoint for YouTube thumbnails (`i.ytimg.com`, `yt3.ggpht.com`)
+- **Download Speed** - Added KB/s, MB/s indicator in loading state
+- **Merge Optimization** - Merge endpoint now uses `audio-copy` flag and reconnect flags
+
+### 🐛 Fixes
+
+- **Python Bytecode Cache** - Documented cache clearing with `taskkill /F /IM python.exe` to avoid stale results
+- **CookieModal Animation** - Fixed close behavior to animation-driven close lifecycle
+- **DownAria Link Update** - Changed from downaria.site to downaria.vercel.app
+
+### 📦 Files Changed
+
+```
+~ package.json                    # Version 2.0.0
+~ src/app/layout.tsx             # JetBrains Mono font
+~ src/app/page.tsx               # Logo, banner, button labels, section rename
+~ src/components/ExtractForm.tsx # Auto-extract on paste, text labels
+~ src/components/FormatList.tsx  # Codec grouping, warning popups
+~ api/services/formats.py        # Multi-codec, progressive priority
+~ api/routes/extract.py           # URL canonicalization
+```
+
+---
+
+## [1.8.0] - 2026-02-23 — FetchtiumV2 Modular Restructure
+
+### 🚀 Highlights
+
+- Introduced modular Python API architecture with app factory and blueprints.
+- Added extractor service layer modules (`formats`, `resolver`, `ytdlp`, `gallery_dl`, `transforms`).
+- Added TypeScript extractor architecture split (`native`, `wrappers`, shared types, Python client).
+- Added new Next.js route `POST /api/extract` while preserving `/api/v1/extract` compatibility.
+- Standardized Python runtime port to `5000` across scripts, env, and orchestration.
+- Fixed CookieModal close behavior to animation-driven close lifecycle.
+
+### 🧪 Testing
+
+- Added Python tests for config, security, errors, formats, routes, wrappers, resolver, and smoke checks.
+- Added TypeScript unit tests with Vitest for Python client, wrappers, router detection, and health route.
+
+### 📦 Ops and Docs
+
+- Added `docker-compose.yml` for local dual-service setup.
+- Simplified `start.sh` dual-process orchestration (Python background + Next foreground).
+- Updated docs and added architecture/migration documentation.
+
+---
+
 ## [1.7.0] - 2026-02-23 — Dynamic Deployment Profile
 
 ### 🚀 What's New

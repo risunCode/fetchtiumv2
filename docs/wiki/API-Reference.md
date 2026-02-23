@@ -9,7 +9,8 @@ Base URL examples:
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| POST | `/api/v1/extract` | Extract media metadata |
+| POST | `/api/v1/extract` | Canonical public extract route |
+| POST | `/api/extract` | Secondary compatibility extract route |
 | GET | `/api/v1/status` | Service status and platform list |
 | GET | `/api/v1/stream` | Stream proxy |
 | GET | `/api/v1/download` | Download proxy |
@@ -106,7 +107,7 @@ Example response:
 {
   "success": true,
   "status": "online",
-  "version": "1.5.1",
+  "version": "2.0.0",
   "uptime": 1200,
   "extractors": ["facebook", "instagram", "twitter"],
   "meta": {
@@ -134,6 +135,6 @@ Related endpoints:
 
 Access handling is enforced in `src/middleware.ts`.
 
-- Public routes are explicitly whitelisted.
-- Routes are public; API key not required.
+- Middleware is matched on `/api/:path*` and validates requests generically.
+- Routes are public; API key is not required.
 - Rate limiting and security checks are applied in middleware.

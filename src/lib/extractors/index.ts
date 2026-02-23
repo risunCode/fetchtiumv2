@@ -19,6 +19,9 @@ import { InstagramExtractor } from './instagram';
 import { TwitterExtractor } from './twitter';
 import { TikTokExtractor } from './tiktok';
 import { PixivExtractor } from './pixiv';
+import { NATIVE_EXTRACTORS } from './native';
+import { WRAPPER_EXTRACTORS } from './wrappers';
+import type { ExtractionRequest, ExtractionResult, SupportedPlatform } from './types';
 // import { YouTubeExtractor } from './youtube';
 
 /**
@@ -84,6 +87,64 @@ export function isSupported(url: string): boolean {
   return isPythonPlatform(url);
 }
 
+const PLATFORM_PATTERNS: Record<SupportedPlatform, RegExp[]> = {
+  facebook: [/facebook\.com/i, /fb\.watch/i, /fb\.me/i],
+  instagram: [/instagram\.com/i, /instagr\.am/i],
+  tiktok: [/tiktok\.com/i, /vm\.tiktok\.com/i],
+  twitter: [/twitter\.com/i, /x\.com/i, /t\.co/i],
+  pixiv: [/pixiv\.net/i],
+  youtube: [/youtube\.com/i, /youtu\.be/i, /youtube-nocookie\.com/i],
+  bilibili: [/bilibili\.com/i, /bilibili\.tv/i, /b23\.tv/i],
+  soundcloud: [/soundcloud\.com/i],
+  twitch: [/twitch\.tv/i, /clips\.twitch\.tv/i],
+  bandcamp: [/bandcamp\.com/i],
+  reddit: [/reddit\.com/i, /redd\.it/i, /v\.redd\.it/i],
+  pinterest: [/pinterest\.com/i, /pin\.it/i],
+  weibo: [/weibo\.com/i, /weibo\.cn/i],
+  eporner: [/eporner\.com/i],
+  rule34video: [/rule34video\.com/i],
+};
+
+export function detectPlatformV2(url: string): SupportedPlatform | null {
+  for (const [platform, patterns] of Object.entries(PLATFORM_PATTERNS)) {
+    if (patterns.some((pattern) => pattern.test(url))) {
+      return platform as SupportedPlatform;
+    }
+  }
+  return null;
+}
+
+export async function extract(request: ExtractionRequest): Promise<ExtractionResult> {
+  const platform = detectPlatformV2(request.url);
+  if (!platform) {
+    return {
+      success: false,
+      error: {
+        code: ErrorCode.UNSUPPORTED_PLATFORM,
+        message: 'Platform not supported',
+      },
+    };
+  }
+
+  const nativeExtractor = NATIVE_EXTRACTORS[platform];
+  if (nativeExtractor) {
+    return nativeExtractor(request);
+  }
+
+  const wrapperExtractor = WRAPPER_EXTRACTORS[platform];
+  if (wrapperExtractor) {
+    return wrapperExtractor(request);
+  }
+
+  return {
+    success: false,
+    error: {
+      code: ErrorCode.UNSUPPORTED_PLATFORM,
+      message: `No extractor available for platform: ${platform}`,
+    },
+  };
+}
+
 /**
  * Get all supported platforms with their patterns (profile-aware)
  */
@@ -125,4 +186,5 @@ export function registerExtractor(ExtractorClass: ExtractorClass): void {
 // Re-export base extractor
 export { BaseExtractor } from './base.extractor';
 export type { ExtractOptions, ExtractorClass, InternalExtractResult, InternalExtractError, InternalExtractResponse } from './base.extractor';
+export type { ExtractionRequest, ExtractionResult, SupportedPlatform } from './types';
 

@@ -7,6 +7,11 @@ FetchtiumV2 uses one Next.js app with two extractor execution paths:
 - TypeScript native extractors (inside Next.js runtime)
 - Python extractor service (yt-dlp/gallery-dl) for wrapper platforms
 
+## Public API Surface
+
+- Canonical public extract route: `POST /api/v1/extract`
+- Secondary compatibility route: `POST /api/extract` (do not treat as canonical until parity is intentionally guaranteed)
+
 ## Extract Flow (`POST /api/v1/extract`)
 
 1. Parse and validate request body (`url`, optional `cookie`)
@@ -63,16 +68,38 @@ Note: current `src/lib/extractors/index.ts` includes both native and Python list
 ### Railway/Docker
 
 - Next.js runtime + Python service
-- Managed by supervisor
+- Started by `start.sh`
 - Profile defaults to `full`
 
 Key deployment files:
 
 - `Dockerfile`
 - `start.sh`
-- `supervisord.conf`
 - `vercel.json`
 - `railway.json`
+
+## Python Backend Modules
+
+- `api/app.py`: Flask app factory
+- `api/routes/extract.py`: Python extract route (`/api/extract`)
+- `api/routes/health.py`: Python health route (`/api/health`)
+- `api/routes/proxy.py`: Python stream/proxy route
+- `api/services/ytdlp.py`: yt-dlp extraction service
+- `api/services/gallery_dl.py`: gallery-dl extraction service
+- `api/services/formats.py`: format normalization/processing
+- `api/services/resolver.py`: URL resolution helpers
+- `api/services/transforms.py`: output transformers
+- `api/config.py`: constants + platform registry
+- `api/security.py`: URL/cookie validation + output sanitization
+- `api/errors.py`: error code detection and response helpers
+
+## Environment and Ports
+
+- `PYTHON_SERVER_PORT` controls Python listener port.
+- Next.js -> Python forwarding in `src/app/api/v1/extract/route.ts` resolves endpoint in this order:
+  1. `PYTHON_API_URL`
+  2. `NEXT_PUBLIC_PYTHON_API_URL`
+  3. default `http://127.0.0.1:5000`
 
 ## Error Model
 

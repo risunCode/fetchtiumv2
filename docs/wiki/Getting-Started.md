@@ -27,7 +27,7 @@ npm run dev
 This runs:
 
 - Next.js app on `http://localhost:3000`
-- Python extractor service on `http://localhost:3001`
+- Python extractor service on `http://localhost:5000`
 
 ## Quick Test
 

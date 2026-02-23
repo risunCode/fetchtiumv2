@@ -128,7 +128,6 @@ export function checkAccess(
 const PUBLIC_ROUTES = [
   '/api/v1/stream',
   '/api/v1/download',
-  '/api/v1/events',
   '/api/health',
 ];
 

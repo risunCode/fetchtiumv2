@@ -18,6 +18,7 @@ export async function GET(): Promise<NextResponse<HealthResponse>> {
   const response: HealthResponse = {
     status: 'ok',
     timestamp: Date.now(),
+    runtime: 'next.js',
   };
 
   return NextResponse.json(response);

@@ -19,7 +19,6 @@ import { ErrorCode } from '@/lib/utils/error.utils';
 import { isValidUrl } from '@/lib/utils/url.utils';
 import { addFilenames } from '@/lib/utils/filename.utils';
 import { logger } from '@/lib/utils/logger';
-import { updateLastRequestTime } from '@/app/api/v1/events/route';
 import type { ExtractRequest } from '@/types/api';
 import type { ExtractResult, ExtractError, ResponseMeta } from '@/types/extract';
 
@@ -106,9 +105,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
         { status: 400 }
       );
     }
-
-    // Update last request time for warm/cold status tracking
-    updateLastRequestTime();
 
     // Route to Python extractor in full profile
     if (requestedPython) {
@@ -213,13 +209,14 @@ async function handlePythonExtraction(
 
     // In development/full profile, call local Python service
     if (process.env.NODE_ENV === 'development') {
-      pyUrl = 'http://127.0.0.1:3001/api/extract';
-    } else if (process.env.PYTHON_API_URL) {
+      pyUrl = 'http://127.0.0.1:5000/api/extract';
+    } else if (process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL) {
       // Explicit Python endpoint for non-Vercel deployments
-      pyUrl = `${process.env.PYTHON_API_URL.replace(/\/$/, '')}/api/extract`;
+      const base = (process.env.PYTHON_API_URL || process.env.NEXT_PUBLIC_PYTHON_API_URL || '').replace(/\/$/, '');
+      pyUrl = `${base}/api/extract`;
     } else {
       // Docker/Railway default where python runs as sidecar process
-      pyUrl = 'http://127.0.0.1:3001/api/extract';
+      pyUrl = 'http://127.0.0.1:5000/api/extract';
     }
 
     const pyResponse = await fetch(pyUrl, {
