@@ -4,27 +4,6 @@ All notable changes to FetchtiumV2.
 
 ---
 
-## [2.0.1] - 2026-02-23 — Bug Fixes & Cleanup
-
-### 🐛 Bug Fixes
-
-- **CookieModal Close Fix** - Modal now closes properly; `onClose()` called immediately instead of waiting for animation end
-- **FormatList Render Fix** - Fixed "Cannot update a component while rendering a different component" error by using stable `useCallback` for `onDownloadWithWarning`
-
-### 🗑️ Removed
-
-- **StatusBadge Component** - Removed warm/cold server status indicator
-- **useStatus Hook** - Removed SSE status tracking hook
-- **/api/v1/events Route** - Removed SSE endpoint for server status
-- **ConnectionStats** - Removed `isWarm`, `trackRequest`, `getConnectionStats` from network client
-
-### 🔧 Technical
-
-- Cleaned up all references to warm/cold status tracking across codebase
-- Removed unused SSEStatusEvent type definition
-
----
-
 ## [2.0.0] - 2026-02-23 — YouTube Multi-Codec + UI Polish
 
 ### 🚀 Highlights
