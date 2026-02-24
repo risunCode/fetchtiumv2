@@ -47,7 +47,7 @@ interface FilenameableResult {
 export function sanitize(str: string | undefined | null, maxLen: number = 30): string {
   if (!str) return 'unknown';
   
-  let result = str
+  const result = str
     // Remove emoji ranges
     .replace(/[\u{1F300}-\u{1F9FF}]/gu, '')  // Misc symbols, emoticons
     .replace(/[\u{1F600}-\u{1F64F}]/gu, '')  // Emoticons

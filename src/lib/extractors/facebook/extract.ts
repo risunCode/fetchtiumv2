@@ -484,7 +484,7 @@ export function extractMetadata(html: string, url: string): ExtractedMetadata {
   // Engagement parser
   const parseEngagement = (s: string | undefined): number => {
     if (!s) return 0;
-    let str = s.trim().toLowerCase();
+    const str = s.trim().toLowerCase();
     
     if (str.indexOf('rb') > -1) {
       const num = parseFloat(str.replace(/[^\d,\.]/g, '').replace(',', '.'));

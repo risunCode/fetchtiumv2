@@ -25,6 +25,11 @@ import {
   COMMON_USER_AGENT 
 } from '@/lib/utils/platform-headers';
 import { logger } from '@/lib/utils/logger';
+import {
+  isYouTubeWatchUrl,
+  downloadAndMergeYouTubeToMp4,
+  cleanupYouTubeTempDir,
+} from '@/lib/utils/youtube-fastpath';
 import path from 'path';
 import fs from 'fs';
 
@@ -99,8 +104,79 @@ export async function GET(request: NextRequest): Promise<Response> {
   const audioUrlParam = request.nextUrl.searchParams.get('audioUrl');
   const videoHashParam = request.nextUrl.searchParams.get('videoH');
   const audioHashParam = request.nextUrl.searchParams.get('audioH');
+  const watchUrlParam =
+    request.nextUrl.searchParams.get('watchUrl') ||
+    request.nextUrl.searchParams.get('url') ||
+    request.nextUrl.searchParams.get('sourceUrl') ||
+    request.nextUrl.searchParams.get('watch');
   const filename = request.nextUrl.searchParams.get('filename');
+  const qualityParam = request.nextUrl.searchParams.get('quality');
   const copyAudioRequested = request.nextUrl.searchParams.get('copyAudio') === '1';
+
+  const hasSplitInputs = Boolean(videoUrlParam || audioUrlParam || videoHashParam || audioHashParam);
+  if (!hasSplitInputs && watchUrlParam && isYouTubeWatchUrl(watchUrlParam)) {
+    try {
+      const { filePath, tempDir } = await downloadAndMergeYouTubeToMp4(watchUrlParam, qualityParam);
+      const fileStat = await fs.promises.stat(filePath);
+      const stream = fs.createReadStream(filePath);
+
+      let cleanedUp = false;
+      const cleanup = () => {
+        if (cleanedUp) {
+          return;
+        }
+        cleanedUp = true;
+        cleanupYouTubeTempDir(tempDir).catch(() => {});
+      };
+
+      stream.on('close', cleanup);
+      stream.on('error', cleanup);
+
+      const responseHeaders: Record<string, string> = {
+        'Content-Type': 'video/mp4',
+        'Content-Length': String(fileStat.size),
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Expose-Headers': 'Content-Length, Content-Disposition, Content-Type',
+      };
+
+      if (filename) {
+        const safeName = filename.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, '_');
+        responseHeaders['Content-Disposition'] = `attachment; filename="${safeName.toLowerCase().endsWith('.mp4') ? safeName : `${safeName}.mp4`}"`;
+      }
+
+      const webStream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          stream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+          stream.on('end', () => controller.close());
+          stream.on('error', (error) => controller.error(error));
+        },
+        cancel() {
+          stream.destroy();
+          cleanup();
+        },
+      });
+
+      return new Response(webStream, {
+        status: 200,
+        headers: responseHeaders,
+      });
+    } catch (error) {
+      logger.error('merge', 'YouTube watch fast path failed', {
+        url: watchUrlParam.substring(0, 80),
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      return new Response(JSON.stringify({
+        error: {
+          code: 'MERGE_FAILED',
+          message: 'Video-audio merge failed',
+        },
+      }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
 
   // Resolve video URL
   const videoResolved = resolveUrl(videoUrlParam, videoHashParam);

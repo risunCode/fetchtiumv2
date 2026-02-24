@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 
 const NATIVE_PLATFORMS = ['facebook', 'instagram', 'tiktok', 'twitter', 'pixiv'] as const;
 const WRAPPER_PLATFORMS = [
@@ -50,14 +51,13 @@ function MethodBadge({ method }: { method: 'GET' | 'POST' }) {
 }
 
 export default function DocsPage() {
-  const [baseUrl, setBaseUrl] = useState('https://fetchtiumv2.up.railway.app');
-  const [extractors, setExtractors] = useState<string[]>([]);
-
-  useEffect(() => {
+  const [baseUrl] = useState(() => {
     if (typeof window !== 'undefined') {
-      setBaseUrl(window.location.origin);
+      return window.location.origin;
     }
-  }, []);
+    return 'https://fetchtiumv2.up.railway.app';
+  });
+  const [extractors, setExtractors] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,11 +100,7 @@ export default function DocsPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-80">
-              <div className="flex h-8 w-8 items-center justify_center rounded-lg bg-gradient-to-br from-blue-500 to-purple-600">
-                <svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-              </div>
+              <Image src="/icon.png" alt="Fetchtium" width={32} height={32} className="w-8 h-8 rounded-lg" />
               <span className="text-lg font-semibold">Fetchtium</span>
             </Link>
             <span className="text-zinc-700">/</span>

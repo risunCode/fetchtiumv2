@@ -154,9 +154,11 @@ export function PlayerModal({
   // Reset when closing - properly cleanup all media
   useEffect(() => {
     if (!isOpen) {
-      setError(null);
-      setIsLoading(false);
-      setLoadingStatus('');
+      queueMicrotask(() => {
+        setError(null);
+        setIsLoading(false);
+        setLoadingStatus('');
+      });
       cleanupHls();
       
       // Properly stop and cleanup video
@@ -179,8 +181,11 @@ export function PlayerModal({
   useEffect(() => {
     if (!isOpen || !streamUrl) return;
 
-    setError(null);
-    setIsLoading(true);
+    queueMicrotask(() => {
+      setError(null);
+      setIsLoading(true);
+      setLoadingStatus('');
+    });
     cleanupHls();
 
     const video = videoRef.current;
@@ -188,7 +193,9 @@ export function PlayerModal({
     const mediaElement = type === 'video' ? video : audio;
     
     if (!mediaElement) {
-      setIsLoading(false);
+      queueMicrotask(() => {
+        setIsLoading(false);
+      });
       return;
     }
 
@@ -217,9 +224,13 @@ export function PlayerModal({
     // Progressive streams (merged video+audio, or regular streams)
     // Show loading status for merge endpoint or HLS transcode (FFmpeg processing)
     if (useMergeEndpoint) {
-      setLoadingStatus('Merging video and audio for playback... please wait');
+      queueMicrotask(() => {
+        setLoadingStatus('Merging video and audio for playback... please wait');
+      });
     } else if (needsHlsTranscode) {
-      setLoadingStatus('Processing stream... please wait');
+      queueMicrotask(() => {
+        setLoadingStatus('Processing stream... please wait');
+      });
     }
     
     mediaElement.src = streamUrl;

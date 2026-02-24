@@ -22,7 +22,13 @@ import { isValidUrl as isStoredUrl, getUrlByHash } from '@/lib/utils/url-store';
 import { analyze } from '@/lib/utils/mime.helper';
 import { sanitize } from '@/lib/utils/filename.utils';
 import { logger } from '@/lib/utils/logger';
+import {
+  isYouTubeWatchUrl,
+  downloadAndMergeYouTubeToMp4,
+  cleanupYouTubeTempDir,
+} from '@/lib/utils/youtube-fastpath';
 import type { Readable } from 'stream';
+import fs from 'fs';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -124,8 +130,13 @@ function sanitizeFilename(filename: string): string {
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const urlParam = request.nextUrl.searchParams.get('url');
+  const watchUrlParam =
+    request.nextUrl.searchParams.get('watchUrl') ||
+    request.nextUrl.searchParams.get('sourceUrl') ||
+    request.nextUrl.searchParams.get('watch');
   const hashParam = request.nextUrl.searchParams.get('h');
   const requestedFilename = request.nextUrl.searchParams.get('filename');
+  const qualityParam = request.nextUrl.searchParams.get('quality');
 
   logger.debug('download', 'Download request', {
     hasUrl: !!urlParam,
@@ -157,6 +168,8 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
   } else if (urlParam) {
     url = urlParam;
+  } else if (watchUrlParam) {
+    url = watchUrlParam;
   }
 
   // Validate URL parameter
@@ -173,8 +186,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   }
 
   // Check if URL is from known platforms with their own expiry
-  const isYouTubeUrl = url.includes('googlevideo.com') || url.includes('youtube.com');
+  const isYouTubeUrl = url.includes('googlevideo.com') || url.includes('youtube.com') || url.includes('youtu.be');
   const isBiliBiliUrl = url.includes('bilivideo.') || url.includes('bilibili.') || url.includes('akamaized.net');
+  const isYouTubeWatchRequest = isYouTubeWatchUrl(url);
 
   // Validate URL is from previous extraction (prevent open proxy) - skip if from hash
   // Skip validation for YouTube/BiliBili - they have their own expiry mechanism
@@ -197,6 +211,68 @@ export async function GET(request: NextRequest): Promise<Response> {
       filename: requestedFilename || 'auto',
     });
 
+    if (isYouTubeWatchRequest) {
+      try {
+        const { filePath, tempDir } = await downloadAndMergeYouTubeToMp4(url, qualityParam);
+        const fileStat = await fs.promises.stat(filePath);
+
+        let filename = requestedFilename
+          ? sanitizeFilename(requestedFilename)
+          : generateFilename(url, 'video/mp4');
+        filename = filename.toLowerCase().endsWith('.mp4') ? filename : `${filename}.mp4`;
+
+        const fileStream = fs.createReadStream(filePath);
+        let cleanedUp = false;
+        const cleanup = () => {
+          if (cleanedUp) {
+            return;
+          }
+          cleanedUp = true;
+          cleanupYouTubeTempDir(tempDir).catch(() => {});
+        };
+
+        fileStream.on('close', cleanup);
+        fileStream.on('error', cleanup);
+
+        const filenameAscii = sanitizeFilenameAscii(filename);
+        const filenameUtf8 = encodeURIComponent(sanitizeFilename(filename));
+
+        const webStream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            fileStream.on('data', (chunk: Buffer) => {
+              controller.enqueue(new Uint8Array(chunk));
+            });
+            fileStream.on('end', () => {
+              controller.close();
+            });
+            fileStream.on('error', (error) => {
+              controller.error(error);
+            });
+          },
+          cancel() {
+            fileStream.destroy();
+            cleanup();
+          },
+        });
+
+        return new Response(webStream, {
+          status: 200,
+          headers: {
+            'Content-Type': 'video/mp4',
+            'Content-Length': String(fileStat.size),
+            'Content-Disposition': `attachment; filename="${filenameAscii}"; filename*=UTF-8''${filenameUtf8}`,
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Expose-Headers': 'Content-Length, Content-Disposition, Content-Type',
+          },
+        });
+      } catch (fastPathError) {
+        logger.warn('download', 'YouTube fast path failed, falling back to proxy stream', {
+          url: url.substring(0, 80),
+          error: fastPathError instanceof Error ? fastPathError.message : String(fastPathError),
+        });
+      }
+    }
+
     // Build request headers with platform-specific Referer
     const requestHeaders: Record<string, string> = {};
     
@@ -207,7 +283,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       requestHeaders['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     }
     // YouTube requires Referer
-    else if (url.includes('googlevideo.com') || url.includes('youtube.com')) {
+    else if (url.includes('googlevideo.com') || url.includes('youtube.com') || url.includes('youtu.be')) {
       requestHeaders['Referer'] = 'https://www.youtube.com/';
     }
     // Pixiv requires Referer (images from i.pximg.net)

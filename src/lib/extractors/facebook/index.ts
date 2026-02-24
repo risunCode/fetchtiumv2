@@ -175,12 +175,17 @@ export class FacebookExtractor extends BaseExtractor {
 
     } catch (error) {
       logger.error('facebook', 'Extraction failed', error as Error);
+
+      const errorCode =
+        error instanceof Error && 'code' in error
+          ? (error as Error & { code?: string }).code
+          : undefined;
       
       if (error instanceof Error) {
-        if ((error as any).code === ErrorCode.TIMEOUT) {
+        if (errorCode === ErrorCode.TIMEOUT) {
           return buildErrorResult(ErrorCode.TIMEOUT, 'Request timeout');
         }
-        if ((error as any).code === ErrorCode.RATE_LIMITED) {
+        if (errorCode === ErrorCode.RATE_LIMITED) {
           return buildErrorResult(ErrorCode.RATE_LIMITED, 'Rate limited');
         }
       }
