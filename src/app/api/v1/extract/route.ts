@@ -202,6 +202,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
     // Return successful result with meta
     const response: ExtractResult = {
       ...result,
+      sourceUrl: url,
       author: displayAuthor, // Use display name for API response
       authorUsername: result.author, // Keep username for reference
       meta,
@@ -310,6 +311,7 @@ async function handlePythonExtraction(
 
     const response: ExtractResult = {
       ...result,
+      sourceUrl: url,
       meta,
       usedCookie,
     };

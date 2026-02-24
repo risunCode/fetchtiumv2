@@ -111,11 +111,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   const audioUrlParam = request.nextUrl.searchParams.get('audioUrl');
   const videoHashParam = request.nextUrl.searchParams.get('videoH');
   const audioHashParam = request.nextUrl.searchParams.get('audioH');
-  const watchUrlParam =
-    request.nextUrl.searchParams.get('watchUrl') ||
-    request.nextUrl.searchParams.get('url') ||
-    request.nextUrl.searchParams.get('sourceUrl') ||
-    request.nextUrl.searchParams.get('watch');
+  const watchUrlParam = request.nextUrl.searchParams.get('url');
   const filename = request.nextUrl.searchParams.get('filename');
   const qualityParam = request.nextUrl.searchParams.get('quality');
   const copyAudioRequested = request.nextUrl.searchParams.get('copyAudio') === '1';

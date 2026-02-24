@@ -55,6 +55,40 @@ export interface YouTubeFastPathResult {
   tempDir: string;
 }
 
+export type YouTubeAudioFormat = 'mp3' | 'm4a';
+
+async function runYtDlp(args: string[]): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('yt-dlp', args, {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let combinedOutput = '';
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      combinedOutput += chunk.toString();
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      combinedOutput += chunk.toString();
+    });
+
+    child.on('error', (error) => {
+      reject(error);
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(`yt-dlp exited with code ${code}: ${combinedOutput.trim().slice(0, 1000)}`));
+    });
+  });
+}
+
 export async function downloadAndMergeYouTubeToMp4(
   sourceUrl: string,
   quality?: string | null
@@ -74,35 +108,7 @@ export async function downloadAndMergeYouTubeToMp4(
       sourceUrl,
     ];
 
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn('yt-dlp', args, {
-        windowsHide: true,
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-
-      let combinedOutput = '';
-
-      child.stdout.on('data', (chunk: Buffer) => {
-        combinedOutput += chunk.toString();
-      });
-
-      child.stderr.on('data', (chunk: Buffer) => {
-        combinedOutput += chunk.toString();
-      });
-
-      child.on('error', (error) => {
-        reject(error);
-      });
-
-      child.on('close', (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-
-        reject(new Error(`yt-dlp exited with code ${code}: ${combinedOutput.trim().slice(0, 1000)}`));
-      });
-    });
+    await runYtDlp(args);
 
     if (fs.existsSync(finalOutput)) {
       return { filePath: finalOutput, tempDir };
@@ -116,6 +122,48 @@ export async function downloadAndMergeYouTubeToMp4(
 
     return {
       filePath: path.join(tempDir, mp4Name),
+      tempDir,
+    };
+  } catch (error) {
+    await cleanupYouTubeTempDir(tempDir);
+    throw error;
+  }
+}
+
+export async function downloadYouTubeAudio(
+  sourceUrl: string,
+  format: YouTubeAudioFormat = 'm4a'
+): Promise<YouTubeFastPathResult> {
+  const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'fetchtium-yt-audio-'));
+  try {
+    const normalizedFormat: YouTubeAudioFormat = format === 'mp3' ? 'mp3' : 'm4a';
+    const outputTemplate = path.join(tempDir, 'output.%(ext)s');
+    const finalOutput = path.join(tempDir, `output.${normalizedFormat}`);
+
+    const args = [
+      '--no-warnings',
+      '--no-playlist',
+      '-x',
+      '--audio-format', normalizedFormat,
+      '--audio-quality', '0',
+      '-o', outputTemplate,
+      sourceUrl,
+    ];
+
+    await runYtDlp(args);
+
+    if (fs.existsSync(finalOutput)) {
+      return { filePath: finalOutput, tempDir };
+    }
+
+    const createdFiles = await fs.promises.readdir(tempDir);
+    const audioName = createdFiles.find((name) => name.toLowerCase().endsWith(`.${normalizedFormat}`));
+    if (!audioName) {
+      throw new Error(`yt-dlp completed but no ${normalizedFormat} output was produced`);
+    }
+
+    return {
+      filePath: path.join(tempDir, audioName),
       tempDir,
     };
   } catch (error) {

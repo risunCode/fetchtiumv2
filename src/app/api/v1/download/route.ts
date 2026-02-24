@@ -25,7 +25,9 @@ import { logger } from '@/lib/utils/logger';
 import {
   isYouTubeWatchUrl,
   downloadAndMergeYouTubeToMp4,
+  downloadYouTubeAudio,
   cleanupYouTubeTempDir,
+  type YouTubeAudioFormat,
 } from '@/lib/utils/youtube-fastpath';
 import type { Readable } from 'stream';
 import fs from 'fs';
@@ -137,19 +139,19 @@ function sanitizeFilename(filename: string): string {
  */
 export async function GET(request: NextRequest): Promise<Response> {
   const urlParam = request.nextUrl.searchParams.get('url');
-  const watchUrlParam =
-    request.nextUrl.searchParams.get('watchUrl') ||
-    request.nextUrl.searchParams.get('sourceUrl') ||
-    request.nextUrl.searchParams.get('watch');
   const hashParam = request.nextUrl.searchParams.get('h');
   const requestedFilename = request.nextUrl.searchParams.get('filename');
   const qualityParam = request.nextUrl.searchParams.get('quality');
+  const requestedType = request.nextUrl.searchParams.get('type')?.toLowerCase();
+  const requestedAudioFormatParam = request.nextUrl.searchParams.get('format')?.toLowerCase();
+  const requestedAudioFormat: YouTubeAudioFormat = requestedAudioFormatParam === 'mp3' ? 'mp3' : 'm4a';
 
   logger.debug('download', 'Download request', {
     hasUrl: !!urlParam,
     hasHash: !!hashParam,
     hashLength: hashParam?.length,
     filename: requestedFilename?.substring(0, 30),
+    type: requestedType,
   });
 
   // Resolve URL from hash or direct param
@@ -175,8 +177,6 @@ export async function GET(request: NextRequest): Promise<Response> {
     }
   } else if (urlParam) {
     url = urlParam;
-  } else if (watchUrlParam) {
-    url = watchUrlParam;
   }
 
   // Validate URL parameter
@@ -219,14 +219,21 @@ export async function GET(request: NextRequest): Promise<Response> {
     });
 
     if (isYouTubeWatchRequest) {
+      const isAudioFastPath = requestedType === 'audio';
       try {
-        const { filePath, tempDir } = await downloadAndMergeYouTubeToMp4(url, qualityParam);
+        const { filePath, tempDir } = isAudioFastPath
+          ? await downloadYouTubeAudio(url, requestedAudioFormat)
+          : await downloadAndMergeYouTubeToMp4(url, qualityParam);
         const fileStat = await fs.promises.stat(filePath);
 
         let filename = requestedFilename
           ? sanitizeFilename(requestedFilename)
-          : generateFilename(url, 'video/mp4');
-        filename = filename.toLowerCase().endsWith('.mp4') ? filename : `${filename}.mp4`;
+          : generateFilename(url, isAudioFastPath ? `audio/${requestedAudioFormat === 'mp3' ? 'mpeg' : 'mp4'}` : 'video/mp4');
+
+        const requiredExtension = isAudioFastPath ? requestedAudioFormat : 'mp4';
+        filename = filename.toLowerCase().endsWith(`.${requiredExtension}`)
+          ? filename
+          : `${filename.replace(/\.[^.]+$/, '')}.${requiredExtension}`;
 
         const fileStream = fs.createReadStream(filePath);
         let cleanedUp = false;
@@ -265,7 +272,9 @@ export async function GET(request: NextRequest): Promise<Response> {
         return new Response(webStream, {
           status: 200,
           headers: {
-            'Content-Type': 'video/mp4',
+            'Content-Type': isAudioFastPath
+              ? (requestedAudioFormat === 'mp3' ? 'audio/mpeg' : 'audio/mp4')
+              : 'video/mp4',
             'Content-Length': String(fileStat.size),
             'Content-Disposition': `attachment; filename="${filenameAscii}"; filename*=UTF-8''${filenameUtf8}`,
             'Access-Control-Allow-Origin': '*',
@@ -273,6 +282,24 @@ export async function GET(request: NextRequest): Promise<Response> {
           },
         });
       } catch (fastPathError) {
+        if (isAudioFastPath) {
+          logger.error('download', 'YouTube audio fast path failed', {
+            url: url.substring(0, 80),
+            format: requestedAudioFormat,
+            error: fastPathError instanceof Error ? fastPathError.message : String(fastPathError),
+          });
+
+          return new Response(JSON.stringify({
+            error: {
+              code: 'DOWNLOAD_FAILED',
+              message: 'YouTube audio conversion failed',
+            },
+          }), {
+            status: 502,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
         logger.warn('download', 'YouTube fast path failed, falling back to proxy stream', {
           url: url.substring(0, 80),
           error: fastPathError instanceof Error ? fastPathError.message : String(fastPathError),

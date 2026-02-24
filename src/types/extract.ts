@@ -76,6 +76,8 @@ export interface ExtractResult {
   success: true;
   platform: string;
   contentType: string;
+  /** Original input URL used for extraction (watch URL, post URL, etc.) */
+  sourceUrl?: string;
   title?: string;
   author?: string;
   authorUsername?: string;

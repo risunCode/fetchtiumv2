@@ -291,6 +291,55 @@ export function buildDownloadUrl(source: MediaSource, filename: string, mediaTyp
   return `/api/v1/download?${params.toString()}`;
 }
 
+function inferAudioOutputFormat(source: MediaSource): 'mp3' | 'm4a' {
+  const extension = source.extension?.toLowerCase();
+  const mime = source.mime?.toLowerCase() || '';
+
+  if (extension === 'm4a' || extension === 'aac' || mime.includes('audio/mp4') || mime.includes('audio/aac')) {
+    return 'm4a';
+  }
+
+  if (extension === 'mp3' || mime.includes('audio/mpeg')) {
+    return 'mp3';
+  }
+
+  // Default transcode target for opus/webm/unknown audio
+  return 'mp3';
+}
+
+function replaceFileExtension(filename: string, extension: string): string {
+  const normalizedExt = extension.replace(/^\./, '');
+  if (!normalizedExt) {
+    return filename;
+  }
+
+  if (filename.toLowerCase().endsWith(`.${normalizedExt.toLowerCase()}`)) {
+    return filename;
+  }
+
+  if (filename.includes('.')) {
+    return filename.replace(/\.[^.]+$/, `.${normalizedExt}`);
+  }
+
+  return `${filename}.${normalizedExt}`;
+}
+
+function buildYouTubeAudioDownloadUrl(sourceUrlRaw: string | undefined, source: MediaSource, filename: string): string {
+  const sourceUrl = sourceUrlRaw?.trim();
+  if (!sourceUrl) {
+    return buildDownloadUrl(source, filename, 'audio');
+  }
+
+  const audioFormat = inferAudioOutputFormat(source);
+  const params = new URLSearchParams();
+  params.set('url', sourceUrl);
+  params.set('type', 'audio');
+  params.set('format', audioFormat);
+  params.set('quality', source.quality || 'audio');
+  params.set('filename', replaceFileExtension(filename, audioFormat));
+  return `/api/v1/download?${params.toString()}`;
+}
+
 /**
  * Trigger file download
  */
@@ -390,6 +439,8 @@ function FormatRow({ item, source, result, onPlay, onDownloadWithWarning }: Form
       setDownloadSpeed(null);
       try {
         const isVideo = item.type === 'video';
+        const isAudio = item.type === 'audio';
+        const isYouTubeAudioFastPath = isAudio && result.platform?.toLowerCase() === 'youtube' && Boolean(result.sourceUrl);
         const hlsTranscode = needsHlsStream(source);
         
         // Determine output extension
@@ -397,13 +448,25 @@ function FormatRow({ item, source, result, onPlay, onDownloadWithWarning }: Form
         if (hlsTranscode || (isVideo && needsMerge(source))) {
           ext = isVideo ? 'mp4' : 'mp3';
         } else {
-          ext = item.type === 'video' ? 'mp4' : item.type === 'audio' ? 'mp3' : 'jpg';
+          const sourceExtension = source.extension?.toLowerCase();
+          ext = item.type === 'video'
+            ? 'mp4'
+            : item.type === 'audio'
+              ? (sourceExtension || inferAudioOutputFormat(source))
+              : 'jpg';
+        }
+
+        if (isYouTubeAudioFastPath) {
+          ext = inferAudioOutputFormat(source);
         }
         
         // Use filename from source if available, replace extension for transcode/merge
         let filename = source.filename || `download_${source.quality}.${ext}`;
         if ((hlsTranscode || needsMerge(source)) && source.filename) {
           filename = source.filename.replace(/\.[^.]+$/, `.${ext}`);
+        }
+        if (isYouTubeAudioFastPath) {
+          filename = replaceFileExtension(filename, ext);
         }
         
         let downloadUrl: string;
@@ -424,6 +487,8 @@ function FormatRow({ item, source, result, onPlay, onDownloadWithWarning }: Form
             // Fallback to regular download if no audio found
             downloadUrl = buildDownloadUrl(source, filename, 'video');
           }
+        } else if (isYouTubeAudioFastPath) {
+          downloadUrl = buildYouTubeAudioDownloadUrl(result.sourceUrl, source, filename);
         } else {
           // Use regular download URL for non-merge cases
           downloadUrl = buildDownloadUrl(source, filename, isVideo ? 'video' : 'audio');
@@ -444,7 +509,7 @@ function FormatRow({ item, source, result, onPlay, onDownloadWithWarning }: Form
     } else {
       await startDownload();
     }
-  }, [item.type, source, result.items, onDownloadWithWarning]);
+  }, [item.type, source, result.items, result.platform, result.sourceUrl, onDownloadWithWarning]);
 
   const handleOpen = useCallback(() => {
     const shouldOpenViaProxy = source.needsProxy || needsHlsStream(source) || needsMerge(source);
@@ -488,7 +553,7 @@ function FormatRow({ item, source, result, onPlay, onDownloadWithWarning }: Form
       // Pass needsProxy flag for YouTube HLS sources
       onPlay(source.url, item.type, source.mime, item.thumbnail || undefined, audioUrl, source.needsProxy);
     }
-  }, [item.type, item.thumbnail, source.url, source.mime, source, result.items, onPlay]);
+  }, [item.type, item.thumbnail, source, result.items, onPlay]);
 
   return (
     <div className="flex items-center justify-between gap-3 bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-3 hover:bg-zinc-800/70 transition-colors">
@@ -578,7 +643,6 @@ export function FormatList({ result, onPlay }: FormatListProps) {
   const [warningType, setWarningType] = useState<'all' | 'single' | null>(null);
   const [pendingDownload, setPendingDownload] = useState<(() => void) | null>(null);
 
-  const hasMultipleItems = result.items.length > 1;
   const grouped = groupByCodec(result.items);
 
   const hasYouTubeDashFormats = result.items.some(item => 
@@ -615,18 +679,32 @@ export function FormatList({ result, onPlay }: FormatListProps) {
 
       try {
         const isVideo = item.type === 'video';
+        const isAudio = item.type === 'audio';
+        const isYouTubeAudioFastPath = isAudio && result.platform?.toLowerCase() === 'youtube' && Boolean(result.sourceUrl);
         const hlsTranscode = needsHlsStream(src);
         
         let ext: string;
         if (hlsTranscode || (isVideo && needsMerge(src))) {
           ext = isVideo ? 'mp4' : 'mp3';
         } else {
-          ext = isVideo ? 'mp4' : item.type === 'audio' ? 'mp3' : 'jpg';
+          const sourceExtension = src.extension?.toLowerCase();
+          ext = isVideo
+            ? 'mp4'
+            : item.type === 'audio'
+              ? (sourceExtension || inferAudioOutputFormat(src))
+              : 'jpg';
+        }
+
+        if (isYouTubeAudioFastPath) {
+          ext = inferAudioOutputFormat(src);
         }
         
         let filename = src.filename || `download_${i + 1}.${ext}`;
         if ((hlsTranscode || needsMerge(src)) && src.filename) {
           filename = src.filename.replace(/\.[^.]+$/, `.${ext}`);
+        }
+        if (isYouTubeAudioFastPath) {
+          filename = replaceFileExtension(filename, ext);
         }
         
         let downloadUrl: string;
@@ -645,6 +723,8 @@ export function FormatList({ result, onPlay }: FormatListProps) {
           } else {
             downloadUrl = buildDownloadUrl(src, filename, 'video');
           }
+        } else if (isYouTubeAudioFastPath) {
+          downloadUrl = buildYouTubeAudioDownloadUrl(result.sourceUrl, src, filename);
         } else {
           downloadUrl = buildDownloadUrl(src, filename, isVideo ? 'video' : 'audio');
         }
@@ -664,7 +744,7 @@ export function FormatList({ result, onPlay }: FormatListProps) {
     }
 
     setDownloadingAll(false);
-  }, [result.items]);
+  }, [result.items, result.platform, result.sourceUrl]);
 
   const handleDownloadAll = useCallback(() => {
     if (!result.items?.length) return;
