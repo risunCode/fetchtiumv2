@@ -162,7 +162,7 @@ function createErrorResponse(code: string, message: string, status: number): Nex
   );
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   
   // Only apply to API routes

@@ -1,4 +1,4 @@
-# FetchtiumV2
+# Fetchtium
 
 - [Home](Home.md)
 - [Getting Started](Getting-Started.md)

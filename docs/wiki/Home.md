@@ -1,18 +1,13 @@
-# FetchtiumV2 v2.0.0 Wiki
+# Fetchtium Wiki
 
-FetchtiumV2 is a hybrid extractor service:
+Fetchtium is a Next.js media extraction service with profile-aware routing between native TypeScript extractors and optional Python wrapper platforms.
 
-- Next.js API routes and UI
-- TypeScript native extractors
-- Python extractor backend for yt-dlp/gallery-dl platforms
+## Current Snapshot Notes
 
-## v2.0 Highlights
-
-- **YouTube Multi-Codec**: Returns ALL codecs (H.264, VP9, AV1) per resolution for user choice
-- **Progressive Priority**: 360p H.264 with audio shown first as "READY" (no merge needed)
-- **Auto-Extract**: Paste button automatically extracts when valid URL is in clipboard
-- **JetBrains Mono**: All UI text now uses JetBrains Mono font
-- **Python on Port 5000**: Python service runs on port 5000
+- Canonical extract endpoint: `POST /api/v1/extract`.
+- `GET /api/v1/download` includes YouTube watch-url fast-path via `yt-dlp`.
+- `GET /api/v1/merge` supports both split-stream merge and optional watch-url mode.
+- This snapshot does not include a local `api/` Python module, so Python wrapper mode requires an external Python service.
 
 ## Quick Links
 
@@ -23,34 +18,15 @@ FetchtiumV2 is a hybrid extractor service:
 - [API Reference](API-Reference.md)
 - [Deployment](Deployment.md)
 
-## Current Runtime Model
+## Runtime Profiles
 
-- `POST /api/v1/extract` is the canonical public extraction route.
-- `POST /api/extract` exists as a secondary compatibility route.
-- Native platforms are always processed in TypeScript.
-- Python platforms are processed only when Python is enabled by profile.
-- Profile values:
-  - `vercel` -> native only
-  - `full` -> native + Python
+- `vercel`: native extractors only.
+- `full`: native + Python wrapper platforms when Python backend is reachable.
+- Python-platform requests in non-Python profile return `PLATFORM_UNAVAILABLE_ON_DEPLOYMENT` (HTTP 400).
 
-If a Python-only platform is requested in `vercel` profile, API returns:
+## Removed/Unavailable Route Docs
 
-- `error.code = PLATFORM_UNAVAILABLE_ON_DEPLOYMENT`
-- HTTP status `400`
+The following routes are not present in this snapshot and are documented as unavailable:
 
-## Core Characteristics
-
-- Consistent JSON response shape (`success`, `error`, `meta`)
-- Platform-aware extraction routing
-- Stream and download proxy endpoints
-- HLS/DASH handling and merge endpoints
-- Status endpoint with supported platform list
-
-## Important Notes
-
-- In this repo, deployment and access behavior are defined by code, not wiki assumptions.
-- Check:
-  - `src/app/api/v1/extract/route.ts`
-  - `src/lib/config/index.ts`
-  - `src/lib/extractors/python-platforms.ts`
-  - `src/lib/extractors/index.ts`
+- `/api/v1/events`
+- `/api/extract`

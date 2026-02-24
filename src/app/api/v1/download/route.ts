@@ -33,14 +33,21 @@ import fs from 'fs';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+function normalizeStreamChunk(chunk: string | Buffer): Uint8Array {
+  if (typeof chunk === 'string') {
+    return new TextEncoder().encode(chunk);
+  }
+  return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+}
+
 /**
  * Convert Node.js Readable stream to Web ReadableStream
  */
 function nodeStreamToWebStream(nodeStream: Readable): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start(controller) {
-      nodeStream.on('data', (chunk: Buffer) => {
-        controller.enqueue(new Uint8Array(chunk));
+      nodeStream.on('data', (chunk: string | Buffer) => {
+        controller.enqueue(normalizeStreamChunk(chunk));
       });
       nodeStream.on('end', () => {
         controller.close();
@@ -239,8 +246,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
         const webStream = new ReadableStream<Uint8Array>({
           start(controller) {
-            fileStream.on('data', (chunk: Buffer) => {
-              controller.enqueue(new Uint8Array(chunk));
+            fileStream.on('data', (chunk: string | Buffer) => {
+              controller.enqueue(normalizeStreamChunk(chunk));
             });
             fileStream.on('end', () => {
               controller.close();

@@ -1,111 +1,70 @@
-# FetchtiumV2 v2.0.0
+# Fetchtium v2.0.0
 
-Media extraction service built with Next.js (App Router), TypeScript, and Python.
+Media extraction service built with Next.js App Router and TypeScript, with optional Python-backed wrapper extraction in `full` profile.
 
-## Architecture Summary
+## Snapshot Scope
 
-- Single Next.js app with profile-aware extraction routing.
-- Native extractors (TypeScript): Facebook, Instagram, Twitter/X, TikTok, Pixiv.
-- Python extractors (yt-dlp/gallery-dl): YouTube, SoundCloud, BiliBili, Twitch, Bandcamp, Reddit, Pinterest, Weibo, Eporner, Rule34Video.
-- Canonical architecture/runtime reference: `docs/wiki/Architecture.md`.
+- Canonical extract endpoint is `POST /api/v1/extract`.
+- Available runtime routes are under `src/app/api/**/route.ts`.
+- This snapshot does **not** include a local `api/` Python module, so Python wrapper mode depends on a reachable Python service (`http://127.0.0.1:5000` in development, configurable by `PYTHON_API_URL` outside development).
 
-## What's New in v2.0
-
-- **YouTube Multi-Codec**: Returns ALL codecs (H.264, VP9, AV1) per resolution for user choice
-- **Progressive Priority**: 360p H.264 with audio shown first as "READY" (no merge needed)
-- **Auto-Extract**: Paste button automatically extracts when valid URL is in clipboard
-- **JetBrains Mono**: All UI text now uses JetBrains Mono font
-- **Clean UI**: Removed backlinks section, added DownAria banner
-
-## Deployment Behavior
-
-- **Vercel**: Native extractors only (TypeScript). Sets `EXTRACTOR_PROFILE=vercel` via `vercel.json`.
-- **Railway/Docker**: Full profile with Python sidecar (`EXTRACTOR_PROFILE=full` by default). Python service runs on port **5000**.
-- For Python-only platforms on Vercel, `POST /api/v1/extract` returns:
-  - `error.code: PLATFORM_UNAVAILABLE_ON_DEPLOYMENT`
-  - HTTP 400
-
-## API Endpoints
+## API Endpoints (Current)
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
 | POST | `/api/v1/extract` | Canonical public extraction route |
-| POST | `/api/extract` | Secondary compatibility route (behavior parity not guaranteed) |
-| GET | `/api/v1/status` | Service status and platform list |
+| GET | `/api/v1/status` | Service status and profile-aware platform list |
 | GET | `/api/v1/stream` | Media stream proxy |
-| GET | `/api/v1/download` | Download proxy with filename |
-| GET | `/api/v1/hls-proxy` | HLS proxy |
-| GET | `/api/v1/hls-stream` | HLS/DASH to progressive stream |
-| GET | `/api/v1/merge` | Video/audio merge |
+| GET | `/api/v1/download` | Download proxy with filename support and YouTube watch fast-path |
+| GET | `/api/v1/hls-proxy` | HLS manifest/segment proxy |
+| GET | `/api/v1/hls-stream` | HLS/DASH to progressive conversion |
+| GET | `/api/v1/merge` | Split-stream merge and optional YouTube watch-url mode |
 | GET | `/api/v1/thumbnail` | Thumbnail proxy |
-| GET | `/api/v1/events` | SSE status stream |
 | GET | `/api/changelog` | Changelog content |
 | GET | `/api/health` | Health check |
 
-## Response Shape
+Unavailable in this snapshot:
 
-All error responses are standardized:
+- `GET /api/v1/events`
+- `POST /api/extract`
 
-```json
-{
-  "success": false,
-  "error": {
-    "code": "INVALID_URL",
-    "message": "Invalid URL format"
-  },
-  "meta": {
-    "responseTime": 3,
-    "accessMode": "public",
-    "publicContent": true
-  }
-}
-```
+## YouTube Fast-Path Behavior
 
-## Quick Start (Local)
+- `GET /api/v1/download` supports `watchUrl` (also `sourceUrl`/`watch`) and uses `yt-dlp` to fetch + merge to MP4 directly when the input is a YouTube watch/shorts URL.
+- `GET /api/v1/merge` keeps normal split-stream behavior (`videoUrl` + `audioUrl`, or `videoH` + `audioH`) and also supports watch-url mode (`watchUrl`/`url`/`sourceUrl`/`watch`) when split inputs are not provided.
+- `quality` can be passed to both fast paths to constrain selected height.
+
+## Deployment Profiles
+
+- `vercel`: native extractors only.
+- `full`: native + Python platforms (only when Python API is reachable).
+- If a Python platform is requested while Python is disabled, API returns `PLATFORM_UNAVAILABLE_ON_DEPLOYMENT` with HTTP 400.
+
+## Local Run
 
 ```bash
 npm install
-pip install -r requirements.txt
 cp .env.example .env.local
-npm run dev
+npm run dev:next
 ```
 
-App: `http://localhost:3000`
-Python service: `http://localhost:5000`
+Optional Python dependencies (for external wrapper service):
 
-## Environment Variables
-
-```env
-PORT=3000
-NODE_ENV=development
-ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-REQUEST_TIMEOUT=30000
-RATE_LIMIT_ENABLED=true
-RATE_LIMIT_MAX=100
-RATE_LIMIT_WINDOW=60000
-PYTHON_SERVER_PORT=5000
-PYTHON_API_URL=http://127.0.0.1:5000
-NEXT_PUBLIC_PYTHON_API_URL=http://127.0.0.1:5000
-FLASK_DEBUG=false
+```bash
+pip install -r requirements.txt
 ```
 
-Optional:
+## Dependency and Lint Notes
 
-```env
-EXTRACTOR_PROFILE=vercel
-URL_ENCRYPT_KEY=your_32_char_hex
-```
-
-Notes:
-
-- `PYTHON_SERVER_PORT` controls where the Python process listens.
-- Next.js route forwarding for Python platforms uses `PYTHON_API_URL`, then `NEXT_PUBLIC_PYTHON_API_URL`, and defaults to `http://127.0.0.1:5000`.
+- ESLint stack is aligned with Next.js 16 (`eslint@9`, `eslint-config-next@16`, `core-web-vitals` + TypeScript configs).
+- Dependency remediation includes a `minimatch` override under `eslint-config-next` in `package.json`.
+- `npm audit --audit-level=high` reports `0 vulnerabilities` for this snapshot.
+- `npm run lint` currently passes with warnings (no errors), so docs avoid claiming a fully warning-free lint state.
 
 ## Docs
 
 - In-app docs: `/docs`
 - Wiki docs: `docs/wiki/`
-- Architecture details: `docs/wiki/Architecture.md`
 
 ## License
 

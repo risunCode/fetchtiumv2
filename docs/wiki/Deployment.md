@@ -5,8 +5,8 @@
 | Target | Profile | Python Service | Notes |
 | --- | --- | --- | --- |
 | Vercel | `vercel` | Disabled | Native extractors only |
-| Railway (Dockerfile) | `full` | Enabled | Full platform coverage |
-| Docker self-hosted | `full` | Enabled | Full platform coverage |
+| Railway (Dockerfile) | `full` | Conditional | Requires Python `api/` backend presence |
+| Docker self-hosted | `full` | Conditional | Requires Python `api/` backend presence |
 
 ## Vercel
 
@@ -47,7 +47,7 @@ Key runtime defaults:
 
 ## Docker
 
-Container runtime includes:
+Container runtime is intended to include:
 
 - Node.js 20 runtime
 - Python 3.12 runtime
@@ -59,12 +59,18 @@ Key files:
 - `Dockerfile`
 - `start.sh`
 
+Snapshot caveat:
+
+- `Dockerfile` uses `COPY api ./api` and `start.sh` runs `python -m api`.
+- This repository snapshot does not include `BringAlive/fetchtiumv2/api/`.
+- As-is, Docker/Railway full-profile deployment requires restoring that module or providing an external Python API service.
+
 ## Deployment Checklist
 
 1. Set required environment values (`ALLOWED_ORIGINS`).
 2. Decide profile:
    - Vercel -> `vercel`
-   - Railway/Docker -> `full`
+   - Railway/Docker -> `full` (only when Python backend is present/reachable)
 3. Confirm health check:
    - `GET /api/health`
 4. Verify status endpoint:
@@ -90,4 +96,4 @@ In `vercel` profile this should return `PLATFORM_UNAVAILABLE_ON_DEPLOYMENT`.
 Public endpoint note:
 
 - Use `POST /api/v1/extract` as canonical public extract route.
-- Keep `/api/extract` only for compatibility workflows.
+- `/api/extract` is not present in this snapshot.

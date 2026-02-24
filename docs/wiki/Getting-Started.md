@@ -3,8 +3,8 @@
 ## Prerequisites
 
 - Node.js 20+
-- Python 3.10+
-- pip
+- Python 3.10+ and pip (only if you run Python wrapper backend)
+- `yt-dlp` available in runtime PATH for YouTube watch-url fast-path
 
 For full media operations:
 
@@ -14,20 +14,35 @@ For full media operations:
 
 ```bash
 npm install
-pip install -r requirements.txt
 cp .env.example .env.local
+```
+
+Optional for Python wrapper backend:
+
+```bash
+pip install -r requirements.txt
 ```
 
 ## Run Locally
 
+Native-only dev run (works with this snapshot as-is):
+
 ```bash
-npm run dev
+npm run dev:next
 ```
 
-This runs:
+Full-profile wrapper mode requires a working Python `api` module/service. This snapshot does not include `BringAlive/fetchtiumv2/api/`, so `npm run dev`/`npm run dev:python` will only work if you provide that backend externally.
 
-- Next.js app on `http://localhost:3000`
-- Python extractor service on `http://localhost:5000`
+If you have a Python backend available, point Next.js to it:
+
+```env
+PYTHON_API_URL=http://127.0.0.1:5000
+EXTRACTOR_PROFILE=full
+```
+
+Default app URL:
+
+- `http://localhost:3000`
 
 ## Quick Test
 
@@ -44,6 +59,12 @@ curl http://localhost:3000/api/v1/status
 curl http://localhost:3000/api/health
 ```
 
+Test YouTube download fast-path (`yt-dlp` required):
+
+```bash
+curl -L "http://localhost:3000/api/v1/download?watchUrl=https://www.youtube.com/watch?v=dQw4w9WgXcQ&quality=720p" -o video.mp4
+```
+
 ## Runtime Profiles
 
 If `EXTRACTOR_PROFILE` is not set:
@@ -56,6 +77,10 @@ Optional override:
 ```env
 EXTRACTOR_PROFILE=vercel
 ```
+
+Profile caveat:
+
+- `full` profile enables Python platform routing logic, but extraction still requires reachable Python API.
 
 ## Useful Scripts
 

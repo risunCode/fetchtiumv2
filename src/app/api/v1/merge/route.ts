@@ -37,6 +37,13 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // 60 seconds max for merge operations
 
+function normalizeStreamChunk(chunk: string | Buffer): Uint8Array {
+  if (typeof chunk === 'string') {
+    return new TextEncoder().encode(chunk);
+  }
+  return new Uint8Array(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+}
+
 /**
  * Get FFmpeg binary path
  * Priority: System ffmpeg (Railway) > ffmpeg-static (Vercel/local)
@@ -146,7 +153,7 @@ export async function GET(request: NextRequest): Promise<Response> {
 
       const webStream = new ReadableStream<Uint8Array>({
         start(controller) {
-          stream.on('data', (chunk: Buffer) => controller.enqueue(new Uint8Array(chunk)));
+          stream.on('data', (chunk: string | Buffer) => controller.enqueue(normalizeStreamChunk(chunk)));
           stream.on('end', () => controller.close());
           stream.on('error', (error) => controller.error(error));
         },
@@ -356,9 +363,9 @@ export async function GET(request: NextRequest): Promise<Response> {
       let hasData = false;
       let stderrOutput = '';
 
-      ffmpeg.stdout.on('data', (chunk: Buffer) => {
+      ffmpeg.stdout.on('data', (chunk: string | Buffer) => {
         hasData = true;
-        writer.write(new Uint8Array(chunk)).catch(() => {});
+        writer.write(normalizeStreamChunk(chunk)).catch(() => {});
       });
 
       ffmpeg.stdout.on('error', (err) => {

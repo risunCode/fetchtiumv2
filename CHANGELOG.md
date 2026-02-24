@@ -4,6 +4,27 @@ All notable changes to FetchtiumV2.
 
 ---
 
+## [2.0.1] - 2026-02-24 — Docs Sync for Current Snapshot
+
+### 📝 Documentation Updates
+
+- Updated README and wiki pages to match current routes in `src/app/api/**/route.ts`.
+- Documented YouTube watch-url fast-path behavior in `GET /api/v1/download` and optional watch-url mode in `GET /api/v1/merge`.
+- Clarified that split-stream merge (`videoUrl` + `audioUrl` or `videoH` + `audioH`) remains supported and unchanged.
+
+### ⚠️ Accuracy and Scope Notes
+
+- Removed/marked unavailable endpoint docs for routes not present in this snapshot (for example, `/api/v1/events` and `/api/extract`).
+- Added caveats that local Python wrapper mode and Docker/Railway full-profile claims depend on the presence of the Python `api/` module, which is not included in this snapshot.
+- Kept deployment and platform coverage statements conditional on active profile and Python backend availability.
+
+### 🔒 Tooling Notes
+
+- Documented dependency security remediation context (including `minimatch` override for `eslint-config-next`).
+- Updated lint/tooling notes to reflect current stack alignment (`eslint@9` + `eslint-config-next@16`) without claiming warning-free lint output.
+
+---
+
 ## [2.0.0] - 2026-02-23 — YouTube Multi-Codec + UI Polish
 
 ### 🚀 Highlights

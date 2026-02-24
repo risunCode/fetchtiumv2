@@ -5,26 +5,29 @@ Base URL examples:
 - Local: `http://localhost:3000`
 - Deployment: `https://your-domain`
 
-## Core Endpoints
+## Available Endpoints
 
 | Method | Endpoint | Description |
 | --- | --- | --- |
-| POST | `/api/v1/extract` | Canonical public extract route |
-| POST | `/api/extract` | Secondary compatibility extract route |
-| GET | `/api/v1/status` | Service status and platform list |
-| GET | `/api/v1/stream` | Stream proxy |
-| GET | `/api/v1/download` | Download proxy |
-| GET | `/api/v1/hls-proxy` | HLS proxy |
-| GET | `/api/v1/hls-stream` | HLS/DASH progressive stream |
-| GET | `/api/v1/merge` | Merge video + audio |
+| POST | `/api/v1/extract` | Canonical extraction endpoint |
+| GET | `/api/v1/status` | Service status and active platform list |
+| GET | `/api/v1/stream` | Media stream proxy |
+| GET | `/api/v1/download` | Download proxy with optional YouTube watch fast-path |
+| GET | `/api/v1/hls-proxy` | HLS proxy for manifests/segments |
+| GET | `/api/v1/hls-stream` | HLS/DASH conversion stream |
+| GET | `/api/v1/merge` | Split-stream merge and optional YouTube watch mode |
 | GET | `/api/v1/thumbnail` | Thumbnail proxy |
-| GET | `/api/v1/events` | SSE status events |
-| GET | `/api/changelog` | Changelog markdown/text |
-| GET | `/api/health` | Health check |
+| GET | `/api/changelog` | Changelog text |
+| GET | `/api/health` | Basic health check |
+
+Unavailable in this snapshot:
+
+- `/api/v1/events`
+- `/api/extract`
 
 ## POST /api/v1/extract
 
-### Request
+Request body:
 
 ```json
 {
@@ -33,42 +36,7 @@ Base URL examples:
 }
 ```
 
-### Success (example)
-
-```json
-{
-  "success": true,
-  "platform": "twitter",
-  "contentType": "video",
-  "items": [],
-  "meta": {
-    "responseTime": 200,
-    "accessMode": "public",
-    "publicContent": true
-  }
-}
-```
-
-### Error (example)
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "INVALID_URL",
-    "message": "Invalid URL format"
-  },
-  "meta": {
-    "responseTime": 5,
-    "accessMode": "public",
-    "publicContent": true
-  }
-}
-```
-
-### Deployment-Limited Error
-
-When `EXTRACTOR_PROFILE=vercel` and URL belongs to Python platform:
+Profile-limited error example:
 
 ```json
 {
@@ -85,56 +53,39 @@ When `EXTRACTOR_PROFILE=vercel` and URL belongs to Python platform:
 }
 ```
 
-### Important Error Codes
+## GET /api/v1/download
 
-- `INVALID_URL`
-- `UNSUPPORTED_PLATFORM`
-- `PLATFORM_UNAVAILABLE_ON_DEPLOYMENT`
-- `RATE_LIMITED`
-- `EXTRACTION_FAILED`
-- `TIMEOUT`
-- `PRIVATE_CONTENT`
-- `LOGIN_REQUIRED`
-- `AGE_RESTRICTED`
-- `DELETED_CONTENT`
-- `NO_MEDIA_FOUND`
+Accepted query params:
+
+- `url` or `h` (standard proxy mode)
+- `filename` (optional content-disposition filename)
+- `watchUrl` or `sourceUrl` or `watch` (YouTube watch-url mode)
+- `quality` (optional, used by watch fast-path)
+
+YouTube fast-path behavior:
+
+- If input is a YouTube watch/shorts URL, route attempts `yt-dlp` download + merge to MP4.
+- If fast-path fails, route falls back to normal proxy streaming behavior.
+
+## GET /api/v1/merge
+
+Primary split-stream mode (unchanged):
+
+- `videoUrl` + `audioUrl`
+- or `videoH` + `audioH`
+- optional `copyAudio=1`
+
+Optional watch-url mode:
+
+- `watchUrl` (also `url`/`sourceUrl`/`watch`) with optional `quality`
+- only used when split inputs are not provided
 
 ## GET /api/v1/status
 
-Example response:
-
-```json
-{
-  "success": true,
-  "status": "online",
-  "version": "2.0.0",
-  "uptime": 1200,
-  "extractors": ["facebook", "instagram", "twitter"],
-  "meta": {
-    "responseTime": 1,
-    "accessMode": "public",
-    "publicContent": true
-  }
-}
-```
-
-## Stream and Download Endpoints
-
-- `/api/v1/stream` and `/api/v1/download` accept either:
-  - direct `url`
-  - hashed reference `h` from extraction flow
-
-Related endpoints:
-
-- `/api/v1/hls-proxy`
-- `/api/v1/hls-stream`
-- `/api/v1/merge`
-- `/api/v1/thumbnail`
+Returns `success`, `status`, `version`, `uptime`, `extractors`, and `meta`.
 
 ## Access Control Notes
 
-Access handling is enforced in `src/middleware.ts`.
-
-- Middleware is matched on `/api/:path*` and validates requests generically.
-- Routes are public; API key is not required.
-- Rate limiting and security checks are applied in middleware.
+- Middleware applies to `/api/:path*` in `src/middleware.ts`.
+- Endpoints are public (no API key).
+- Rate limiting and request validation are enforced at middleware/route level.

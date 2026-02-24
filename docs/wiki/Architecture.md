@@ -2,15 +2,31 @@
 
 ## High-Level Design
 
-FetchtiumV2 uses one Next.js app with two extractor execution paths:
+Fetchtium uses one Next.js app with two extraction paths:
 
 - TypeScript native extractors (inside Next.js runtime)
-- Python extractor service (yt-dlp/gallery-dl) for wrapper platforms
+- Python wrapper backend (yt-dlp/gallery-dl) for wrapper platforms when available
 
 ## Public API Surface
 
 - Canonical public extract route: `POST /api/v1/extract`
-- Secondary compatibility route: `POST /api/extract` (do not treat as canonical until parity is intentionally guaranteed)
+
+Current additional routes:
+
+- `GET /api/v1/status`
+- `GET /api/v1/stream`
+- `GET /api/v1/download`
+- `GET /api/v1/hls-proxy`
+- `GET /api/v1/hls-stream`
+- `GET /api/v1/merge`
+- `GET /api/v1/thumbnail`
+- `GET /api/changelog`
+- `GET /api/health`
+
+Unavailable in this snapshot:
+
+- `GET /api/v1/events`
+- `POST /api/extract`
 
 ## Extract Flow (`POST /api/v1/extract`)
 
@@ -23,7 +39,7 @@ FetchtiumV2 uses one Next.js app with two extractor execution paths:
 6. Validate support (`isSupported(url)`)
 7. Route:
    - Native platform -> TypeScript extractor
-   - Python platform -> Python service `/api/extract`
+   - Python platform -> Python service `/api/extract` (when backend reachable)
 8. Attach `meta`, store proxy URLs, add filenames, return response
 
 Reference files:
@@ -55,9 +71,23 @@ Helper functions:
 - version
 - `extractors` list from `getSupportedPlatforms()`
 
-Note: current `src/lib/extractors/index.ts` includes both native and Python lists in `getSupportedPlatforms()`.
+Note: `getSupportedPlatforms()` is profile-aware and only includes Python platforms when Python is enabled.
 
-## Runtime Topology
+## Stream and Merge Paths
+
+### Download Route (`GET /api/v1/download`)
+
+- Standard mode: proxy direct media URL or URL hash (`h`).
+- YouTube watch fast-path: when `watchUrl`/`sourceUrl`/`watch` points to YouTube watch/shorts URL, route runs `yt-dlp` and serves merged MP4.
+- If YouTube fast-path fails, route falls back to normal proxy behavior.
+
+### Merge Route (`GET /api/v1/merge`)
+
+- Primary mode (preserved): split-stream merge with `videoUrl` + `audioUrl` (or `videoH` + `audioH`).
+- Optional watch mode: `watchUrl`/`url`/`sourceUrl`/`watch` for YouTube when split inputs are absent.
+- `copyAudio=1` attempts audio copy first and falls back to AAC transcode when needed.
+
+## Runtime Topology (Conditional)
 
 ### Vercel
 
@@ -78,25 +108,16 @@ Key deployment files:
 - `vercel.json`
 - `railway.json`
 
-## Python Backend Modules
+## Snapshot Caveat
 
-- `api/app.py`: Flask app factory
-- `api/routes/extract.py`: Python extract route (`/api/extract`)
-- `api/routes/health.py`: Python health route (`/api/health`)
-- `api/routes/proxy.py`: Python stream/proxy route
-- `api/services/ytdlp.py`: yt-dlp extraction service
-- `api/services/gallery_dl.py`: gallery-dl extraction service
-- `api/services/formats.py`: format normalization/processing
-- `api/services/resolver.py`: URL resolution helpers
-- `api/services/transforms.py`: output transformers
-- `api/config.py`: constants + platform registry
-- `api/security.py`: URL/cookie validation + output sanitization
-- `api/errors.py`: error code detection and response helpers
+- The repo currently does not include `BringAlive/fetchtiumv2/api/`.
+- Dockerfile and scripts still reference that module, so full-profile claims are conditional on restoring or externally providing Python backend code.
 
 ## Environment and Ports
 
 - `PYTHON_SERVER_PORT` controls Python listener port.
-- Next.js -> Python forwarding in `src/app/api/v1/extract/route.ts` resolves endpoint in this order:
+- In development, Next.js extract route forwards to `http://127.0.0.1:5000`.
+- Outside development, forwarding resolves endpoint in this order:
   1. `PYTHON_API_URL`
   2. `NEXT_PUBLIC_PYTHON_API_URL`
   3. default `http://127.0.0.1:5000`

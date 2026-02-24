@@ -25,6 +25,35 @@ import type { ExtractResult, ExtractError, ResponseMeta } from '@/types/extract'
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const AGE_RESTRICTED_SIGNATURES = [
+  'age-restricted',
+  'age restricted',
+  'confirm your age',
+  'sign in to confirm your age',
+  'mature content',
+  'inappropriate for some users',
+  'verify your age',
+];
+
+function hasAgeRestrictedSignature(value: string): boolean {
+  const lower = value.toLowerCase();
+  return AGE_RESTRICTED_SIGNATURES.some((signature) => lower.includes(signature));
+}
+
+function normalizeUpstreamAgeRestrictedError(error: { code?: string; message?: string } | undefined): void {
+  if (!error || !error.message) {
+    return;
+  }
+
+  if (error.code !== ErrorCode.DELETED_CONTENT) {
+    return;
+  }
+
+  if (hasAgeRestrictedSignature(error.message)) {
+    error.code = ErrorCode.AGE_RESTRICTED;
+  }
+}
+
 /**
  * POST handler for media extraction
  */
@@ -127,6 +156,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExtractRe
 
     // Handle error result
     if (!result.success) {
+      normalizeUpstreamAgeRestrictedError(result.error);
+
       logger.warn('extract', 'Extraction failed', { 
         url: url.substring(0, 50), 
         error: result.error.code 
@@ -237,6 +268,8 @@ async function handlePythonExtraction(
     });
 
     if (!result.success) {
+      normalizeUpstreamAgeRestrictedError(result.error);
+
       logger.warn('extract', 'Python extraction failed', {
         url: url.substring(0, 50),
         error: result.error?.code,
