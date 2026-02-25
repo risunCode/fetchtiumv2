@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "platform": "youtube",
+  "contentType": "video",
+  "title": "Mock YouTube",
+  "items": [
+    {
+      "index": 0,
+      "type": "video",
+      "sources": [
+        {"quality": "720p", "url": "https://cdn.example/video.mp4", "mime": "video/mp4"}
+      ]
+    }
+  ]
+}

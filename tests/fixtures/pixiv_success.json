@@ -1,0 +1,15 @@
+{
+  "success": true,
+  "platform": "pixiv",
+  "contentType": "image",
+  "title": "Mock Pixiv",
+  "items": [
+    {
+      "index": 0,
+      "type": "image",
+      "sources": [
+        {"quality": "original", "url": "https://i.pximg.net/mock.jpg", "mime": "image/jpeg"}
+      ]
+    }
+  ]
+}
