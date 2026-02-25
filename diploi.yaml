@@ -1,0 +1,11 @@
+diploiVersion: v1.0
+
+components:
+  - name: Next.js
+    identifier: fetchtiumv2
+    folder: /
+    package: https://github.com/diploi/component-nextjs#main
+    env:
+      include:
+        - value: production
+          name: NODE_ENV
