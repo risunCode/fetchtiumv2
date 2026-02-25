@@ -10,7 +10,9 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies (including devDependencies for build)
-RUN npm ci
+# Use npm install because lockfile contains override-resolved entries that
+# can fail strict npm ci validation across npm minor/runtime differences.
+RUN npm install --no-audit --no-fund
 
 # ============================================
 # Stage 2: Builder
