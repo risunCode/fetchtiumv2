@@ -116,14 +116,23 @@ export function detectPlatformV2(url: string): SupportedPlatform | null {
 
 export async function extract(request: ExtractionRequest): Promise<ExtractionResult> {
   const platform = detectPlatformV2(request.url);
+  const startedAt = Date.now();
+
+  const buildUnsupportedResult = (message: string): ExtractionResult => ({
+    success: false,
+    error: {
+      code: ErrorCode.UNSUPPORTED_PLATFORM,
+      message,
+    },
+    meta: {
+      responseTime: Date.now() - startedAt,
+      accessMode: 'public',
+      publicContent: true,
+    },
+  });
+
   if (!platform) {
-    return {
-      success: false,
-      error: {
-        code: ErrorCode.UNSUPPORTED_PLATFORM,
-        message: 'Platform not supported',
-      },
-    };
+    return buildUnsupportedResult('Platform not supported');
   }
 
   const nativeExtractor = NATIVE_EXTRACTORS[platform];
@@ -136,13 +145,7 @@ export async function extract(request: ExtractionRequest): Promise<ExtractionRes
     return wrapperExtractor(request);
   }
 
-  return {
-    success: false,
-    error: {
-      code: ErrorCode.UNSUPPORTED_PLATFORM,
-      message: `No extractor available for platform: ${platform}`,
-    },
-  };
+  return buildUnsupportedResult(`No extractor available for platform: ${platform}`);
 }
 
 /**
