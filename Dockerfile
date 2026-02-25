@@ -25,7 +25,7 @@ COPY --from=deps /app/node_modules ./node_modules
 
 # Copy source files
 COPY package.json package-lock.json ./
-COPY next.config.ts tsconfig.json postcss.config.mjs eslint.config.mjs ./
+COPY next.config.mjs tsconfig.json postcss.config.mjs eslint.config.mjs ./
 COPY src ./src
 COPY public ./public
 
